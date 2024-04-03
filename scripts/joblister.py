@@ -1,5 +1,5 @@
 '''
-This module is a test environment for list creation
+This module is a development environment for task list creation
 '''
 
 class task_generator():
