@@ -7,17 +7,18 @@ setup_queue = Queue()
 task_queue  = Queue()
 
 
+
 class SimpleGUI:
     def __init__(self, root, setup_queue,empty_task_list):
         self.root = root
         self.root.title("Scrollable Table GUI")
 
         # Define the columns
-        self.columns = ('corner', 'phy', 'instance', 'lane', 'protocol', 'test')
+        self.columns = ('corner', 'phy', 'port', 'lane', 'protocol', 'test')
 
         # Create the Treeview
         self.tree = ttk.Treeview(root, columns=self.columns, show="headings")
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)  # Expand the treeview to take available space
+        self.tree.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)  # Expand the treeview to take available space
 
         # Define headings and column stretch
         for col in self.columns:
@@ -26,12 +27,38 @@ class SimpleGUI:
 
         # Add a scrollbar
         self.scrollbar = ttk.Scrollbar(root, orient=tk.VERTICAL, command=self.tree.yview)
-        self.scrollbar.pack(side=tk.LEFT, fill='y')  # Pack the scrollbar next to the treeview
+        self.scrollbar.pack(side=tk.RIGHT, fill='y')  # Pack the scrollbar next to the treeview
         self.tree.configure(yscrollcommand=self.scrollbar.set)
+
+        # Frame for indicators (boot indicator, equipment indicator, etc...)
+        self.indicators_frame = tk.LabelFrame(root,text='Equipment Status',labelanchor='n')
+        self.indicators_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.indicators_frame.configure()
+
+        # Create Indicators
+        indicators_list = [
+            'SixShot',
+            'Board',
+            'Intec',
+            'Unit',
+            'Switch',
+            'Scope',
+            'JBERT'
+        ]
+        self.indicator_sub_frame_dict ={}
+        for indicator in indicators_list:
+            ind_su_fr = tk.Frame(self.indicators_frame)
+            ind_su_fr.pack(fill=tk.X, padx=5, pady=5)
+            ind_ind = tk.Label(ind_su_fr,text='N/A',bg='grey',width=15)
+            ind_ind.pack(side=tk.RIGHT)
+            ind_equip = tk.Label(ind_su_fr,text=indicator)
+            ind_equip.pack(side=tk.LEFT)
+            self.indicator_sub_frame_dict[indicator] = ind_su_fr
 
         # Frame for controls (add/remove buttons)
         self.controls_frame = tk.Frame(root)
         self.controls_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.controls_frame.configure()
 
         # Add button
         self.add_button = tk.Button(self.controls_frame, text="Add Item", command=self.add_item)
@@ -55,6 +82,16 @@ class SimpleGUI:
 
         if not empty_task_list:
             self.generate_list()
+
+    def update_indicator(self, indicator_name, color):
+            color_c1 = {
+                'red'    : '#ff0000',
+                'green'  : '#00ff00',
+                'yellow' : 'yellow',
+                'grey'   : 'grey'
+            }
+            if indicator_name in self.indicators:
+                self.canvas.itemconfig(self.indicators[indicator_name], fill=color_c1[color])
 
     def add_item(self):
         """Function to add a new item to the treeview."""
@@ -139,7 +176,7 @@ class MainClass():
     def DoTechnicals(self):
         self.setup_tasks = Queue()
         self.TaskGenerator()
-        self.RunGUI()
+        self.RunGUI_in_new_Thread()
 
     def TaskGenerator(self):
         corners = ["NOM", "LVHT", "LVLT", "HVLT", "HVHT"]
@@ -156,7 +193,7 @@ class MainClass():
             "edp": ["EHEW", "Jitters"],
         }
         instances = {
-            "tcss": [1],
+            "tcss": [0,1,2],
             "edp": [0],
         }
         lanes = {
@@ -176,14 +213,17 @@ class MainClass():
                                 new_task = [corner, phy, instance, lane, protocol, test]
                                 self.setup_tasks.put(new_task)
 
-    def RunGUI(self):
+    def RunGUI_in_new_Thread(self):
         # Create a new thread targeting the function that initializes and runs the GUI.
         threading.Thread(target=self.init_gui).start()
 
     def init_gui(self):
         root = tk.Tk()
-        app = SimpleGUI(root, self.setup_tasks,self.empty_task_list)
+        self.app = SimpleGUI(root, self.setup_tasks,self.empty_task_list)
         root.mainloop()
 
 if __name__ == "__main__":
-    A = MainClass(False)
+    a = MainClass(False)
+
+    # this will NOT work, because the function is in a separate thread.
+    a.app.update_indicator('Board','green')

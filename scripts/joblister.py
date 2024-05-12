@@ -65,8 +65,8 @@ class task_generator():
                 ],
                 "edp"   : ["EHEW","Jitters"],
             }
-            self.instances = {
-                "tcss"  : [1],
+            self.ports = {
+                "tcss"  : [0,1,2],
                 "edp"   : [0],
             }
             self.lanes = {

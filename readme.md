@@ -1,9 +1,17 @@
 # Threaded PythonSV operator
 
+## TODO
+
+- [ ] aa
+
 ## Goals
 
 - Optimize test flow
 - Handle equipment failure independently of script advancement
+
+## Ideas
+
+Make the program live/ online. Meaning' that it always runs and gets queries from the user
 
 ## Flow
 
