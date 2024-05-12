@@ -3,22 +3,89 @@ import threading
 import tkinter as tk
 from tkinter import simpledialog, ttk
 
+
+# GLOBALS
 setup_queue = Queue()
 task_queue  = Queue()
+indicators_status_dict = {
+            'SixShot' : {
+                'N/A'  : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            },
+            'Board' : {
+                'N/A'   : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            },
+            'Intec' : {
+                'N/A'   : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            },
+            'Unit' : {
+                'N/A'   : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            },
+            'Switch' : {
+                'N/A'   : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            },
+            'Scope' : {
+                'N/A'   : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            },
+            'JBERT' : {
+                'N/A'   : 'grey',
+                'Error' : 'red',
+                'Busy'  : 'yellow',
+                'Ready' : 'green'
+            }
+        }
+indicators_status = {
+            'SixShot' : 'N/A',
+            'Board'   : 'N/A',
+            'Intec'   : 'N/A',
+            'Unit'    : 'N/A',
+            'Switch'  : 'N/A',
+            'Scope'   : 'N/A',
+            'JBERT'   : 'N/A'
+        }
+
+## Thread synchronization
+change_indicator_event = threading.Event()
 
 
-
-class SimpleGUI:
-    def __init__(self, root, setup_queue,empty_task_list):
+class MainGUI:
+    def __init__(self, root, setup_queue,empty_task_list,configurations):
         self.root = root
-        self.root.title("Scrollable Table GUI")
+        self.root.title("MTC1 | Main Debug")
+
+        # Define top and bottom frames
+        self.top_frame = tk.Frame(root)
+        self.top_frame.pack(fill=tk.BOTH, padx=5, pady=5,expand=True)
+        self.bottom_frame = tk.Frame(root)
+        self.bottom_frame.pack(fill=tk.X, padx=5, pady=5,anchor="s")
+        self.bottom_left_frame = tk.Frame(self.bottom_frame)
+        self.bottom_left_frame.pack(padx=5, pady=5,anchor="w")
+        
+        # Build the top frame content
 
         # Define the columns
         self.columns = ('corner', 'phy', 'port', 'lane', 'protocol', 'test')
 
         # Create the Treeview
-        self.tree = ttk.Treeview(root, columns=self.columns, show="headings")
-        self.tree.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)  # Expand the treeview to take available space
+        self.tree = ttk.Treeview(self.top_frame, columns=self.columns, show="headings")
+        
 
         # Define headings and column stretch
         for col in self.columns:
@@ -26,17 +93,18 @@ class SimpleGUI:
             self.tree.column(col, stretch=tk.YES, width=100)  # Set width of each column
 
         # Add a scrollbar
-        self.scrollbar = ttk.Scrollbar(root, orient=tk.VERTICAL, command=self.tree.yview)
-        self.scrollbar.pack(side=tk.RIGHT, fill='y')  # Pack the scrollbar next to the treeview
+        self.scrollbar = ttk.Scrollbar(self.top_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.scrollbar.pack(side=tk.RIGHT, fill='y')  # Pack the scrollbar Right to the treeview
+        self.tree.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)  # Expand the treeview to take available space
         self.tree.configure(yscrollcommand=self.scrollbar.set)
 
         # Frame for indicators (boot indicator, equipment indicator, etc...)
-        self.indicators_frame = tk.LabelFrame(root,text='Equipment Status',labelanchor='n')
+        self.indicators_frame = tk.LabelFrame(self.top_frame,text='Equipment Status',labelanchor='n')
         self.indicators_frame.pack(fill=tk.X, padx=5, pady=5)
         self.indicators_frame.configure()
 
         # Create Indicators
-        indicators_list = [
+        self.indicators_list = [
             'SixShot',
             'Board',
             'Intec',
@@ -46,35 +114,44 @@ class SimpleGUI:
             'JBERT'
         ]
         self.indicator_sub_frame_dict ={}
-        for indicator in indicators_list:
+        for indicator in self.indicators_list:
             ind_su_fr = tk.Frame(self.indicators_frame)
             ind_su_fr.pack(fill=tk.X, padx=5, pady=5)
-            ind_ind = tk.Label(ind_su_fr,text='N/A',bg='grey',width=15)
+            ind_ind = tk.Label(ind_su_fr,text='N/A',bg='grey',width=8,name="ind_ind",relief='sunken')
             ind_ind.pack(side=tk.RIGHT)
-            ind_equip = tk.Label(ind_su_fr,text=indicator)
+            ind_equip = tk.Label(ind_su_fr,text=indicator,name='ind_equip')
             ind_equip.pack(side=tk.LEFT)
             self.indicator_sub_frame_dict[indicator] = ind_su_fr
+        threading.Thread(target=self.update_indicator,daemon=True).start()
 
         # Frame for controls (add/remove buttons)
-        self.controls_frame = tk.Frame(root)
+        self.controls_frame = tk.Frame(self.top_frame)
         self.controls_frame.pack(fill=tk.X, padx=5, pady=5)
         self.controls_frame.configure()
 
         # Add button
         self.add_button = tk.Button(self.controls_frame, text="Add Item", command=self.add_item)
-        self.add_button.grid(row=0, column=0, padx=(0, 10))
+        self.add_button.pack(fill=tk.X,pady=2)
 
         # Remove button
         self.remove_button = tk.Button(self.controls_frame, text="Remove Selected", command=self.remove_item)
-        self.remove_button.grid(row=0, column=1)
+        self.remove_button.pack(fill=tk.X,pady=2)
 
         # Remove all button
         self.remove_all_button = tk.Button(self.controls_frame, text="Remove All", command=self.remove_all)
-        self.remove_all_button.grid(row=1, column=0, padx=(0, 10))
+        self.remove_all_button.pack(fill=tk.X,pady=2)
 
         # Generate list button
         self.generate_list_button = tk.Button(self.controls_frame, text="Generate List from Setup", command=self.generate_list)
-        self.generate_list_button.grid(row=1, column=1)
+        self.generate_list_button.pack(fill=tk.X,pady=2)
+
+        # Seperator
+        self.button_seperator = tk.Label(self.controls_frame,height=3)
+        self.button_seperator.pack(fill=tk.X)
+
+        # Run Tests In Queue
+        self.run_tests_in_queue_button = tk.Button(self.controls_frame, text="Run Tests In Queue", command=self.run_tests_in_queue)
+        self.run_tests_in_queue_button.pack(fill=tk.X,pady=2)
 
         # Queue for tasks
         self.setup_queue = setup_queue
@@ -82,17 +159,35 @@ class SimpleGUI:
 
         if not empty_task_list:
             self.generate_list()
+        
+        # Build the bottom frame content
+        for global_parameter in configurations['global']:
+            gp = tk.Label(self.bottom_left_frame,text=f'{global_parameter} :\t\t{configurations["global"][global_parameter]}',name=global_parameter.lower(),anchor='w',borderwidth=2, relief="ridge")
+            gp.pack(fill=tk.X)
 
-    def update_indicator(self, indicator_name, color):
+
+    def update_indicator(self):
             color_c1 = {
                 'red'    : '#ff0000',
                 'green'  : '#00ff00',
                 'yellow' : 'yellow',
                 'grey'   : 'grey'
             }
-            if indicator_name in self.indicators:
-                self.canvas.itemconfig(self.indicators[indicator_name], fill=color_c1[color])
+            global change_indicator_event
+            global indicators_status_dict
+            global indicators_status
+            while True:
+                change_indicator_event.wait()
+                for indicator_name in self.indicators_list:
+                    # CHAT GPT CHANGE THE NEXT LINE TO MATCH THE CODE!!!
+                    self.indicator_sub_frame_dict[indicator_name].children['ind_ind'].configure(
+                        bg=color_c1[indicators_status_dict[indicator_name][indicators_status[indicator_name]]],
+                        text=indicators_status[indicator_name])
+                change_indicator_event.clear()
 
+    def run_tests_in_queue(self):
+        print("WIP!")
+    
     def add_item(self):
         """Function to add a new item to the treeview."""
         item = simpledialog.askstring("Input", "Enter comma-separated values for new item:")
@@ -133,11 +228,10 @@ class MainClass():
         self.DoTechnicals()
         self.configurations = {
             "global": {
-                "scope_ip": "0.0.0.0",
-                "jbert_ip": "0.0.0.0",
-                "switch_ip": "0.0.0.0",
-                "switch_map_path": r"switch\map\path",
-
+                "Scope IP": "192.168.137.5",
+                "JBERT IP": "7.7.7.7",
+                "Switch IP": "1.10.5.59",
+                "Switch Map Path": r"T:\ATD_IO\LNL\PCIe5\LNL_6shot_Tx_Switch_Map.csv"
             },
             "tcss": {
                 "global": {
@@ -219,11 +313,12 @@ class MainClass():
 
     def init_gui(self):
         root = tk.Tk()
-        self.app = SimpleGUI(root, self.setup_tasks,self.empty_task_list)
+        self.app = MainGUI(root, self.setup_tasks,self.empty_task_list,self.configurations)
         root.mainloop()
 
 if __name__ == "__main__":
-    a = MainClass(False)
-
-    # this will NOT work, because the function is in a separate thread.
-    a.app.update_indicator('Board','green')
+    a = MainClass(True)
+    indicators_status["Board"] = 'Ready'
+    indicators_status['Intec'] = 'Busy'
+    indicators_status['Switch'] = 'Error'
+    change_indicator_event.set()
