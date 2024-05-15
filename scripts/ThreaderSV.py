@@ -1,7 +1,7 @@
 from queue import Queue
 import threading
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import messagebox, ttk
 
 
 # GLOBALS
@@ -187,17 +187,156 @@ class MainGUI:
 
     def run_tests_in_queue(self):
         print("WIP!")
-    
+
+
     def add_item(self):
-        """Function to add a new item to the treeview."""
-        item = simpledialog.askstring("Input", "Enter comma-separated values for new item:")
-        if item:  # Proceed only if something was entered
-            values = item.split(',')
-            if len(values) == len(self.columns):  # Check if the entered values match the number of columns
-                self.tree.insert('', tk.END, values=values)
-                self.task_queue.put(values)
-            else:
-                tk.messagebox.showerror("Error", f"The number of values entered does not match the number of columns: {len(self.columns)}.")
+        """Function to add a new item to the treeview using a custom input frame."""
+        def on_submit():
+            tests = []
+            corners =        [val['text'] for val in Corners_checkbox_vars if val['value'].get() == 1]
+            tcss_ports =     [val['text'] for val in tcss_ports_checkbox_vars if val['value'].get() == 1]
+            tcss_lanes =     [val['text'] for val in tcss_lanes_checkbox_vars if val['value'].get() == 1]
+            tcss_protocols = [val['text'] for val in tcss_protocols_checkbox_vars if val['value'].get() == 1]
+            tcss_tests =     [val['text'] for val in tcss_tests_checkbox_vars if val['value'].get() == 1]
+            edp_lanes =      [val['text'] for val in edp_lanes_checkbox_vars if val['value'].get() == 1]
+            edp_protocols =  [val['text'] for val in edp_protocols_checkbox_vars if val['value'].get() == 1]
+            edp_tests =      [val['text'] for val in edp_tests_checkbox_vars if val['value'].get() == 1]
+            for corner in corners:
+                for port in tcss_ports:
+                    for lane in tcss_lanes:
+                        for protocol in tcss_protocols:
+                            for test in tcss_tests:
+                                tests.append([corner,'TCSS',port,lane,protocol,test])
+            for corner in corners:
+                    for lane in edp_lanes:
+                        for protocol in edp_protocols:
+                            for test in edp_tests:
+                                tests.append([corner,'eDP',0,lane,protocol,test])
+            for test in tests:
+                self.tree.insert('', 'end', values=test)
+                self.task_queue.put(test)
+            input_window.destroy()
+
+
+        input_window = tk.Toplevel(self.root)
+        input_window.title("Input")
+        top_frame = tk.Frame(input_window)
+        bottom_frame = tk.Frame(input_window)
+        top_frame.pack()
+        bottom_frame.pack()
+
+        # Corners Checkboxes
+        corners_frame = tk.LabelFrame(top_frame, text="Corners")
+        corners_frame.pack(fill='both', padx=5, pady=5,side="left")
+        Corners_checkbox_texts = [
+            "NOM",
+            "LVHT",
+            "LVLT",
+            "HVLT",
+            "HVHT"
+            ]
+        Corners_checkbox_vars = []
+        for text in Corners_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(corners_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            Corners_checkbox_vars.append({'value':var,'text':text})
+        
+        
+        # tcss
+        tcss_frame = tk.LabelFrame(top_frame, text="TCSS")
+        tcss_frame.pack(fill='both', padx=5, pady=5,side='left')
+        # tcss ports
+        tcss_ports_frame = tk.LabelFrame(tcss_frame, text="Ports")
+        tcss_ports_frame.pack(fill='both', padx=5, pady=5,side='left')
+        tcss_ports_checkbox_texts = ["0","1","2"]
+        tcss_ports_checkbox_vars = []
+        for text in tcss_ports_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_ports_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            tcss_ports_checkbox_vars.append({'value':var,'text':text})
+        # tcss lanes
+        tcss_lanes_frame = tk.LabelFrame(tcss_frame, text="Lanes")
+        tcss_lanes_frame.pack(fill='both', padx=5, pady=5,side="left")
+        tcss_lanes_checkbox_texts = ["0","1","2","3"]
+        tcss_lanes_checkbox_vars = []
+        for text in tcss_lanes_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_lanes_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            tcss_lanes_checkbox_vars.append({'value':var,'text':text})
+        # tcss protocols
+        tcss_protocols_frame = tk.LabelFrame(tcss_frame, text="Protocols")
+        tcss_protocols_frame.pack(fill='both', padx=5, pady=5,side="left")
+        tcss_protocols_checkbox_texts = [
+            'TBT20',
+            'TBT20.6',
+            'TBT10',
+            'TBT10.3',
+            'DP20'
+            ]
+        tcss_protocols_checkbox_vars = []
+        for text in tcss_protocols_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_protocols_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            tcss_protocols_checkbox_vars.append({'value':var,'text':text})
+        #tcss tests
+        tcss_tests_frame = tk.LabelFrame(tcss_frame, text="Tests")
+        tcss_tests_frame.pack(fill='both', padx=5, pady=5,side="left")
+        tcss_tests_checkbox_texts = [
+            "TxBaseSigtest_UiOnly",
+            "TxBaseSigtest_JitterOnly",
+            "tcss_rx_jtol"
+            ]
+        tcss_tests_checkbox_vars = []
+        for text in tcss_tests_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_tests_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            tcss_tests_checkbox_vars.append({'value':var,'text':text})
+
+        # edp
+        edp_frame = tk.LabelFrame(top_frame, text="eDP")
+        edp_frame.pack(fill='both', padx=5, pady=5,side='left')
+        # edp lanes
+        edp_lanes_frame = tk.LabelFrame(edp_frame, text="Lanes")
+        edp_lanes_frame.pack(fill='both', padx=5, pady=5,side="left")
+        edp_lanes_checkbox_texts = ["0","1","2","3"]
+        edp_lanes_checkbox_vars = []
+        for text in edp_lanes_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_lanes_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            edp_lanes_checkbox_vars.append({'value':var,'text':text})
+        # edp protocols
+        edp_protocols_frame = tk.LabelFrame(edp_frame, text="Protocols")
+        edp_protocols_frame.pack(fill='both', padx=5, pady=5,side="left")
+        edp_protocols_checkbox_texts = [
+            '8.1'
+            ]
+        edp_protocols_checkbox_vars = []
+        for text in edp_protocols_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_protocols_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            edp_protocols_checkbox_vars.append({'value':var,'text':text})
+        # edp tests
+        edp_tests_frame = tk.LabelFrame(edp_frame, text="Tests")
+        edp_tests_frame.pack(fill='both', padx=5, pady=5,side="left")
+        edp_tests_checkbox_texts = ["EHEW", "Jitters"]
+        edp_tests_checkbox_vars = []
+        for text in edp_tests_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_tests_frame, text=text, variable=var)
+            checkbox.pack(anchor='w')
+            edp_tests_checkbox_vars.append({'value':var,'text':text})
+
+
+        # Submit button
+        submit_button = tk.Button(bottom_frame, text="Submit", command=on_submit)
+        submit_button.pack(pady=10)
 
     def remove_item(self):
         """Function to remove the selected item from the treeview."""
