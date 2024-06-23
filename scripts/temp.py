@@ -110,7 +110,8 @@ class ToolTip:
         tw.wm_overrideredirect(True)
         tw.wm_geometry("+%d+%d" % (x, y))
 
-        label = tk.Label(tw, text=self.widget.get(), justify=tk.LEFT, background="#ffffe0", relief=tk.SOLID,borderwidth=1, font=("consolas", "8", "normal"))
+        label = tk.Label(tw, text=self.widget.get(), justify=tk.LEFT, background="#ffffe0", relief=tk.SOLID,
+                         borderwidth=1, font=("consolas", "8", "normal"))
         label.pack(ipadx=1)
 
     def hide_tip(self, event=None):
@@ -224,7 +225,8 @@ class MainGUI:
         self.remove_all_button.pack(fill=tk.X, pady=2)
 
         # Generate list button
-        self.generate_list_button = tk.Button(self.controls_frame, text="Generate List from Setup",command=self.generate_list)
+        self.generate_list_button = tk.Button(self.controls_frame, text="Generate List from Setup",
+                                              command=self.generate_list)
         self.generate_list_button.pack(fill=tk.X, pady=2)
 
         # Seperator
@@ -232,7 +234,8 @@ class MainGUI:
         self.button_seperator.pack(fill=tk.X)
 
         # Run Tests In Queue
-        self.run_tests_in_queue_button = tk.Button(self.controls_frame, text="Run Tests In Queue",command=self.run_tests_in_queue)
+        self.run_tests_in_queue_button = tk.Button(self.controls_frame, text="Run Tests In Queue",
+                                                   command=self.run_tests_in_queue)
         self.run_tests_in_queue_button.pack(fill=tk.X, pady=0, side='bottom')
 
         # Queue for tasks
@@ -251,7 +254,8 @@ class MainGUI:
             label.pack(side=tk.LEFT)
 
             entry_var = tk.StringVar(value=configurations['global'][global_parameter])
-            entry = tk.Entry(gp_frame, textvariable=entry_var, state='disabled', width=16,name=f"_{global_parameter}_entry")
+            entry = tk.Entry(gp_frame, textvariable=entry_var, state='disabled', width=16,
+                             name=f"_{global_parameter}_entry")
             entry.pack(side=tk.LEFT)
             if global_parameter == 'Switch Map Path':
                 ToolTip(entry)

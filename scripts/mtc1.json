@@ -1,0 +1,41 @@
+{
+    "global": {
+        "Scope IP": "HA03ESIO0004",
+        "JBERT IP": "7.7.7.8",
+        "Switch IP": "1.10.5.59",
+        "Switch Map Path": "T:\\ATD_IO\\LNL\\PCIe5\\LNL_6shot_Tx_Switch_Map.csv",
+        "6-Shot Host": "ha03hfst0021"
+    },
+    "tcss": {
+        "global": {
+            "bin_file_destination_folder": "bin\\dest",
+            "sigtest_results_folder": "sigtest\results\\dest"
+        },
+        "TBT10": {
+            "scope_preset_path": "scope\\path",
+            "jbert_preset_path": "jbert\\path",
+            "preset": 2
+        },
+        "TBT20": {
+            "scope_preset_path": "scope\\path",
+            "jbert_preset_path": "jbert\\path",
+            "preset": 2
+        },
+        "DP20": {
+            "scope_preset_path": "scope\\path",
+            "jbert_preset_path": "jbert\\path",
+            "preset": 1
+        }
+    },
+    "edp": {
+        "global": {
+            "jitter_data_folder": "jitter\\data\folder",
+            "eye_data_folder": "eye\\data\folder"
+        },
+        "8.1": {
+            "scope_preset_path": "scope\\path",
+            "jbert_preset_path": "jbert\\path",
+            "preset": 0
+        }
+    }
+}
