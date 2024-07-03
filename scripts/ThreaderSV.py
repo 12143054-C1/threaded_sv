@@ -102,6 +102,8 @@ class ToolTip:
         self.widget.bind("<Enter>", self.show_tip)
         self.widget.bind("<Leave>", self.hide_tip)
 
+        
+
     def show_tip(self, event=None):
         x, y, _cx, cy = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
@@ -127,6 +129,9 @@ class MainGUI:
         self.root.minsize(800, 615)
         self.configurations = configurations
         self.config_file_path = config_file_path
+
+        # Default Preferences
+        self.vnc_viewer_path = r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe"
 
         # Add Menu
         self.menu_bar = tk.Menu(self.root)
@@ -158,8 +163,10 @@ class MainGUI:
         separator.pack(fill=tk.X, padx=5, pady=10)
         self.bottom_frame = tk.Frame(root)
         self.bottom_frame.pack(fill=tk.X, anchor="s")
-        self.bottom_left_frame = tk.Frame(self.bottom_frame)
-        self.bottom_left_frame.pack(padx=5, pady=5, anchor="w")
+        self.bottom_gp_frame = tk.Frame(self.bottom_frame)
+        self.bottom_gp_frame.pack(padx=5, pady=5, anchor="w",side='left')
+        self.bottom_credentials_frame = tk.Frame(self.bottom_frame)
+        self.bottom_credentials_frame.pack(padx=5, pady=5, anchor="w",side='left',fill=tk.Y)
 
         # Build the top frame content
 
@@ -242,20 +249,17 @@ class MainGUI:
         if not empty_task_list:
             self.generate_list()
 
-        # Build the bottom frame content
+        # Build the bottom gp frame content
         for global_parameter in configurations['global']:
-            gp_frame = tk.Frame(self.bottom_left_frame, borderwidth=1, relief='ridge', name=f"_{global_parameter}_frame")
+            gp_frame = tk.Frame(self.bottom_gp_frame, borderwidth=1, relief='ridge', name=f"_{global_parameter}_frame")
             gp_frame.pack(fill=tk.X, pady=0)
-
             label = tk.Label(gp_frame, text=f'{global_parameter}:', anchor='w', width=15)
             label.pack(side=tk.LEFT)
-
             entry_var = tk.StringVar(value=configurations['global'][global_parameter])
             entry = tk.Entry(gp_frame, textvariable=entry_var, state='disabled', width=16,name=f"_{global_parameter}_entry")
             entry.pack(side=tk.LEFT)
             if global_parameter == 'Switch Map Path':
                 ToolTip(entry)
-
             def toggle_edit(entry=entry, entry_var=entry_var, global_parameter=global_parameter):
                 if global_parameter == 'Switch Map Path':
                     initial_dir = os.path.dirname(entry_var.get())
@@ -269,25 +273,67 @@ class MainGUI:
                         save_configurations(self.configurations, self.config_file_path)
                     else:
                         entry.config(state='normal')
-
             edit_button = tk.Button(gp_frame, text='Edit',
                                     command=lambda e=entry, ev=entry_var, gp=global_parameter: toggle_edit(e, ev, gp))
             edit_button.pack(side=tk.LEFT)
-
             def open_action(global_parameter=global_parameter, entry_var=entry_var):
                 self.gp_open_function(global_parameter, entry_var.get())
-
             open_button = tk.Button(gp_frame, text='Open', command=open_action)
             open_button.pack(side=tk.LEFT)
 
-        # Default Preferences
-        self.vnc_viewer_path = r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe"
+        # Build the bottom Credentials frame content
+        # Username frame
+        username_frame = tk.Frame(self.bottom_credentials_frame, borderwidth=1, relief='ridge')
+        username_frame.pack(fill=tk.X, pady=0)
+        username_label = tk.Label(username_frame, text="Username:")
+        username_label.pack(side=tk.LEFT, padx=5)
+        self.username_var = tk.StringVar()
+        self.username_entry = tk.Entry(username_frame, textvariable=self.username_var)
+        self.username_entry.pack(side=tk.RIGHT, padx=1)
+        # Password frame
+        password_frame = tk.Frame(self.bottom_credentials_frame, borderwidth=1, relief='ridge')
+        password_frame.pack(fill=tk.X, pady=0)
+        password_label = tk.Label(password_frame, text="Password:")
+        password_label.pack(side=tk.LEFT, padx=5)
+        self.password_var = tk.StringVar()
+        self.password_entry = tk.Entry(password_frame, textvariable=self.password_var, show="*")
+        self.password_entry.pack(side=tk.RIGHT, padx=1)
+        # Buttons frame
+        buttons_frame = tk.Frame(self.bottom_credentials_frame)
+        buttons_frame.pack(fill=tk.X, pady=5)
+        self.commit_button = tk.Button(buttons_frame, text="Commit", command=self.commit_credentials,width=7)
+        self.commit_button.pack(side=tk.LEFT, padx=0)
+        self.clear_button = tk.Button(buttons_frame, text="Clear", command=self.clear_credentials)
+        self.clear_button.pack(side=tk.LEFT, padx=5)
+
+    def commit_credentials(self):
+        if self.commit_button.cget("text") == "Commit":
+            self.username_entry.config(state='disabled')
+            self.password_entry.config(state='disabled')
+            self.commit_button.config(text="Edit")
+        else:
+            self.username_entry.config(state='normal')
+            self.password_entry.config(state='normal')
+            self.commit_button.config(text="Commit")
+
+    def clear_credentials(self):
+        self.username_var.set("")
+        self.password_var.set("")
+        if self.commit_button.cget("text") == "Edit":
+            self.username_entry.config(state='normal')
+            self.password_entry.config(state='normal')
+            self.commit_button.config(text="Commit")
+
+
 
     def show_preferences(self):
         preferences_window = tk.Toplevel(self.root)
         preferences_window.title("Preferences")
         preferences_window.iconbitmap("MTC1_Logo.ico")
         preferences_window.resizable(False, False)
+
+        # Set the window position
+        preferences_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
 
         # VNC Viewer path frame
         vnc_frame = tk.Frame(preferences_window, borderwidth=1, relief='ridge')
@@ -330,6 +376,9 @@ class MainGUI:
         about_window.title("About")
         about_window.minsize(280, 115)
         about_window.resizable(False, False)
+
+        # Set the window position
+        about_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
 
         # Load the image and resize it
         image_path = "MTC1_Logo.png"  # Update with your image path
@@ -377,7 +426,7 @@ class MainGUI:
             except subprocess.CalledProcessError as e:
                 messagebox.showerror("Error", f"Failed to launch VNC Viewer: {e}")
             except FileNotFoundError:
-                messagebox.showerror("Error", "The specified VNC Viewer executable path does not exist.")
+                messagebox.showerror("Error", "The specified VNC Viewer executable path does not exist.\nSpecify the correct VNC Viewer in `Menu -> Preferences` or install it.")
         elif gp == 'Switch IP':
             url = f"http://{path}"
             try:
@@ -415,6 +464,207 @@ class MainGUI:
     def add_item(self):
         """Function to add a new item to the treeview using a custom input frame."""
 
+        def update_submit_button():
+            if (any(var['value'].get() for var in tcss_ports_checkbox_vars + tcss_lanes_checkbox_vars + 
+                    tcss_protocols_checkbox_vars + tcss_tests_checkbox_vars) or
+                any(var['value'].get() for var in edp_lanes_checkbox_vars + edp_protocols_checkbox_vars + 
+                    edp_tests_checkbox_vars)):
+                submit_button.config(state='normal')
+            else:
+                submit_button.config(state='disabled')
+
+        def highlight_frame(frame, highlight=True):
+            if highlight:
+                frame.configure(fg="red")
+            else:
+                frame.configure(fg="black")
+
+        def on_submit():
+            tcss_condition = (any(var['value'].get() for var in Corners_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_ports_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_lanes_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_protocols_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_tests_checkbox_vars))
+
+            edp_condition = (any(var['value'].get() for var in Corners_checkbox_vars) and
+                            any(var['value'].get() for var in edp_lanes_checkbox_vars) and
+                            any(var['value'].get() for var in edp_protocols_checkbox_vars) and
+                            any(var['value'].get() for var in edp_tests_checkbox_vars))
+
+            if tcss_condition or edp_condition:
+                # Proceed with adding items
+                tests = []
+                corners = [val['text'] for val in Corners_checkbox_vars if val['value'].get() == 1]
+                tcss_ports = [val['text'] for val in tcss_ports_checkbox_vars if val['value'].get() == 1]
+                tcss_lanes = [val['text'] for val in tcss_lanes_checkbox_vars if val['value'].get() == 1]
+                tcss_protocols = [val['text'] for val in tcss_protocols_checkbox_vars if val['value'].get() == 1]
+                tcss_tests = [val['text'] for val in tcss_tests_checkbox_vars if val['value'].get() == 1]
+                edp_lanes = [val['text'] for val in edp_lanes_checkbox_vars if val['value'].get() == 1]
+                edp_protocols = [val['text'] for val in edp_protocols_checkbox_vars if val['value'].get() == 1]
+                edp_tests = [val['text'] for val in edp_tests_checkbox_vars if val['value'].get() == 1]
+
+                for corner in corners:
+                    for port in tcss_ports:
+                        for lane in tcss_lanes:
+                            for protocol in tcss_protocols:
+                                for test in tcss_tests:
+                                    tests.append([corner, 'TCSS', port, lane, protocol, test])
+                for corner in corners:
+                    for lane in edp_lanes:
+                        for protocol in edp_protocols:
+                            for test in edp_tests:
+                                tests.append([corner, 'eDP', 0, lane, protocol, test])
+                for test in tests:
+                    self.tree.insert('', 'end', values=test)
+                    self.task_queue.put(test)
+                input_window.destroy()
+            else:
+                # Highlight frames with missing checkboxes
+                highlight_frame(corners_frame, not any(var['value'].get() for var in Corners_checkbox_vars))
+                
+                tcss_active = any(var['value'].get() for var in tcss_ports_checkbox_vars + tcss_lanes_checkbox_vars + 
+                                tcss_protocols_checkbox_vars + tcss_tests_checkbox_vars)
+                if tcss_active:
+                    highlight_frame(tcss_ports_frame, not any(var['value'].get() for var in tcss_ports_checkbox_vars))
+                    highlight_frame(tcss_lanes_frame, not any(var['value'].get() for var in tcss_lanes_checkbox_vars))
+                    highlight_frame(tcss_protocols_frame, not any(var['value'].get() for var in tcss_protocols_checkbox_vars))
+                    highlight_frame(tcss_tests_frame, not any(var['value'].get() for var in tcss_tests_checkbox_vars))
+                else:
+                    highlight_frame(tcss_frame, False)
+                
+                edp_active = any(var['value'].get() for var in edp_lanes_checkbox_vars + edp_protocols_checkbox_vars + 
+                                edp_tests_checkbox_vars)
+                if edp_active:
+                    highlight_frame(edp_lanes_frame, not any(var['value'].get() for var in edp_lanes_checkbox_vars))
+                    highlight_frame(edp_protocols_frame, not any(var['value'].get() for var in edp_protocols_checkbox_vars))
+                    highlight_frame(edp_tests_frame, not any(var['value'].get() for var in edp_tests_checkbox_vars))
+                else:
+                    highlight_frame(edp_frame, False)
+
+        input_window = tk.Toplevel(self.root)
+        input_window.title("Input")
+        input_window.iconbitmap("MTC1_Logo.ico")
+        input_window.resizable(False, False)
+
+        # Make the input window modal
+        input_window.transient(self.root)
+        input_window.grab_set()
+
+        top_frame = tk.Frame(input_window)
+        bottom_frame = tk.Frame(input_window)
+        top_frame.pack()
+        bottom_frame.pack()
+
+        # Corners Checkboxes
+        corners_frame = tk.LabelFrame(top_frame, text="Corners")
+        corners_frame.pack(fill='both', padx=5, pady=5, side="left")
+        Corners_checkbox_texts = ["NOM", "LVHT", "LVLT", "HVLT", "HVHT"]
+        Corners_checkbox_vars = []
+        for text in Corners_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(corners_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            Corners_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS frame
+        tcss_frame = tk.LabelFrame(top_frame, text="TCSS")
+        tcss_frame.pack(fill='both', padx=5, pady=5, side='left')
+
+        # TCSS ports
+        tcss_ports_frame = tk.LabelFrame(tcss_frame, text="Ports")
+        tcss_ports_frame.pack(fill='both', padx=5, pady=5, side='left')
+        tcss_ports_checkbox_texts = ["0", "1", "2"]
+        tcss_ports_checkbox_vars = []
+        for text in tcss_ports_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_ports_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_ports_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS lanes
+        tcss_lanes_frame = tk.LabelFrame(tcss_frame, text="Lanes")
+        tcss_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
+        tcss_lanes_checkbox_texts = ["0", "1", "2", "3"]
+        tcss_lanes_checkbox_vars = []
+        for text in tcss_lanes_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_lanes_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_lanes_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS protocols
+        tcss_protocols_frame = tk.LabelFrame(tcss_frame, text="Protocols")
+        tcss_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
+        tcss_protocols_checkbox_texts = ['TBT20', 'TBT20.6', 'TBT10', 'TBT10.3', 'DP20']
+        tcss_protocols_checkbox_vars = []
+        for text in tcss_protocols_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_protocols_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_protocols_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS tests
+        tcss_tests_frame = tk.LabelFrame(tcss_frame, text="Tests")
+        tcss_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
+        tcss_tests_checkbox_texts = ["TxBaseSigtest_UiOnly", "TxBaseSigtest_JitterOnly", "tcss_rx_jtol"]
+        tcss_tests_checkbox_vars = []
+        for text in tcss_tests_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_tests_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_tests_checkbox_vars.append({'value': var, 'text': text})
+
+        # eDP frame
+        edp_frame = tk.LabelFrame(top_frame, text="eDP")
+        edp_frame.pack(fill='both', padx=5, pady=5, side='left')
+
+        # eDP lanes
+        edp_lanes_frame = tk.LabelFrame(edp_frame, text="Lanes")
+        edp_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
+        edp_lanes_checkbox_texts = ["0", "1", "2", "3"]
+        edp_lanes_checkbox_vars = []
+        for text in edp_lanes_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_lanes_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            edp_lanes_checkbox_vars.append({'value': var, 'text': text})
+
+        # eDP protocols
+        edp_protocols_frame = tk.LabelFrame(edp_frame, text="Protocols")
+        edp_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
+        edp_protocols_checkbox_texts = ['8.1']
+        edp_protocols_checkbox_vars = []
+        for text in edp_protocols_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_protocols_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            edp_protocols_checkbox_vars.append({'value': var, 'text': text})
+
+        # eDP tests
+        edp_tests_frame = tk.LabelFrame(edp_frame, text="Tests")
+        edp_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
+        edp_tests_checkbox_texts = ["EHEW", "Jitters"]
+        edp_tests_checkbox_vars = []
+        for text in edp_tests_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_tests_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            edp_tests_checkbox_vars.append({'value': var, 'text': text})
+
+        # Submit button
+        submit_button = tk.Button(bottom_frame, text="Submit", command=on_submit, state='disabled')
+        submit_button.pack(padx=10, pady=10, side='right')
+
+        # Cancel Button
+        cancel_button = tk.Button(bottom_frame, text="Cancel", command=input_window.destroy)
+        cancel_button.pack(padx=10, pady=10, side='right')
+
+        # Wait for the input window to be closed before returning to the main window
+        self.root.wait_window(input_window)
+
+    def add_item_(self):
+        """Function to add a new item to the treeview using a custom input frame."""
+
         def on_submit():
             tests = []
             corners = [val['text'] for val in Corners_checkbox_vars if val['value'].get() == 1]
@@ -443,6 +693,13 @@ class MainGUI:
 
         input_window = tk.Toplevel(self.root)
         input_window.title("Input")
+        input_window.iconbitmap("MTC1_Logo.ico")
+        input_window.resizable(False,False)
+
+        # Make the input window modal
+        input_window.transient(self.root)
+        input_window.grab_set()
+
         top_frame = tk.Frame(input_window)
         bottom_frame = tk.Frame(input_window)
         top_frame.pack()
@@ -557,7 +814,15 @@ class MainGUI:
 
         # Submit button
         submit_button = tk.Button(bottom_frame, text="Submit", command=on_submit)
-        submit_button.pack(pady=10)
+        submit_button.pack(padx=10,pady=10,side='right')
+
+        # Cancel Button
+        submit_button = tk.Button(bottom_frame, text="Cancel", command=input_window.destroy)
+        submit_button.pack(padx=10,pady=10,side='right')
+
+        # Wait for the input window to be closed before returning to the main window
+        self.root.wait_window(input_window)
+
 
     def remove_item(self):
         """Function to remove the selected item from the treeview."""
