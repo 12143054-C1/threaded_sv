@@ -13,8 +13,6 @@ import json
 # GLOBALS
 VERSION = 0.1
 YEAR = datetime.datetime.now().year
-setup_queue = Queue()
-task_queue = Queue()
 indicators_status_dict = {
     'SixShot': {
         'N/A': 'grey',
@@ -81,19 +79,104 @@ def load_configurations(file_path):
     else:
         return {
             "global": {
-                "Scope IP": "HA03ESIO0004",
-                "JBERT IP": "7.7.7.7",
-                "Switch IP": "1.10.5.59",
-                "Switch Map Path": r"T:\ATD_IO\LNL\PCIe5\LNL_6shot_Tx_Switch_Map.csv",
-                "6-Shot Host": r"ha03hfst0021"
+                "Scope IP":        "mtc1.json not found !!!",
+                "JBERT IP":        "mtc1.json not found !!!",
+                "Switch IP":       "mtc1.json not found !!!",
+                "Switch Map Path": "mtc1.json not found !!!",
+                "6-Shot Host":     "mtc1.json not found !!!"
+            },
+            "tcss": {
+                "global": {
+                    "bin_file_destination_folder": r"bin\dest",
+                    "sigtest_results_folder": r"sigtest\results\dest"
+                },
+                "TBT10": {
+                    "scope_preset_path": r"scope\path",
+                    "jbert_preset_path": r"jbert\path",
+                    "preset": 2
+                },
+                "TBT20": {
+                    "scope_preset_path": r"scope\path",
+                    "jbert_preset_path": r"jbert\path",
+                    "preset": 2
+                },
+                "DP20": {
+                    "scope_preset_path": r"scope\path",
+                    "jbert_preset_path": r"jbert\path",
+                    "preset": 1
+                }
+            },
+            "edp": {
+                "global": {
+                    "jitter_data_folder": r"jitter\data\folder",
+                    "eye_data_folder": r"eye\data\folder"
+                },
+                "8.1": {
+                    "scope_preset_path": r"scope\path",
+                    "jbert_preset_path": r"jbert\path",
+                    "preset": 0
+                }
             }
         }
-
 
 def save_configurations(configurations, file_path):
     with open(file_path, 'w') as file:
         json.dump(configurations, file, indent=4)
 
+class TaskGenerator():
+    def __init__(self) -> None:
+        self.corners = [
+            "NOM",
+            "LVHT",
+            "LVLT",
+            "HVLT",
+            "HVHT"
+            ]
+        self.phy_s = ["tcss", "edp"]
+        self.tests = {
+            "tcss": [
+                "ui_ssc_eye",
+                "rise_fall_time",
+                "jitter",
+                "ac_common_mode",
+                "transmitter_equalization",
+                "electrical_idle_voltage"
+                ],
+            "edp": [
+                "EHEW",
+                "Jitters"
+                ],
+        }
+        self.instances = {
+            "tcss": [0, 1, 2, 3],
+            "edp": [0],
+        }
+        self.lanes = {
+            "tcss": [0, 1, 2, 3],
+            "edp": [0, 1, 2, 3],
+        }
+        self.protocols = {
+            "tcss": [
+                "TBT20",
+                "TBT20.6",
+                "TBT10",
+                "TBT10.3",
+                "DP20"
+                ],
+            "edp": ["8.1"],
+        }
+    def TaskGenerator(self,setup_tasks):
+            for corner in self.corners:
+                for phy in self.phy_s:
+                    for instance in self.instances[phy]:
+                        for lane in self.lanes[phy]:
+                            for protocol in self.protocols[phy]:
+                                for test in self.tests[phy]:
+                                    new_task = [corner, phy, instance, lane, protocol, test]
+                                    setup_tasks.put(new_task)
+            return setup_tasks
+    
+TG = TaskGenerator()
 
 class ToolTip:
     def __init__(self, widget):
@@ -123,7 +206,7 @@ class ToolTip:
 
 
 class MainGUI:
-    def __init__(self, root, setup_queue, empty_task_list, configurations, config_file_path):
+    def __init__(self, root, task_queue, empty_task_list, configurations, config_file_path):
         self.root = root
         self.root.title("MTC1 | Main Debug")
         self.root.minsize(800, 615)
@@ -163,10 +246,11 @@ class MainGUI:
         separator.pack(fill=tk.X, padx=5, pady=10)
         self.bottom_frame = tk.Frame(root)
         self.bottom_frame.pack(fill=tk.X, anchor="s")
-        self.bottom_gp_frame = tk.Frame(self.bottom_frame)
+        #self.bottom_gp_frame = tk.Frame(self.bottom_frame)
+        self.bottom_gp_frame = tk.LabelFrame(self.bottom_frame,text="Global Parameters")
         self.bottom_gp_frame.pack(padx=5, pady=5, anchor="w",side='left')
-        self.bottom_credentials_frame = tk.Frame(self.bottom_frame)
-        self.bottom_credentials_frame.pack(padx=5, pady=5, anchor="w",side='left',fill=tk.Y)
+        self.bottom_credentials_frame = tk.LabelFrame(self.bottom_frame,text="Credentials")
+        self.bottom_credentials_frame.pack(padx=5, pady=5, anchor="nw",side='left')
 
         # Build the top frame content
 
@@ -219,15 +303,15 @@ class MainGUI:
         self.controls_frame.configure()
 
         # Add button
-        self.add_button = tk.Button(self.controls_frame, text="Add Item", command=self.add_item)
+        self.add_button = tk.Button(self.controls_frame, text="Add Item", command=self.add_item, background="#e5f0e5")
         self.add_button.pack(fill=tk.X, pady=2)
 
         # Remove button
-        self.remove_button = tk.Button(self.controls_frame, text="Remove Selected", command=self.remove_item)
+        self.remove_button = tk.Button(self.controls_frame, text="Remove Selected", command=self.remove_item, background="#f0e5e5")
         self.remove_button.pack(fill=tk.X, pady=2)
 
         # Remove all button
-        self.remove_all_button = tk.Button(self.controls_frame, text="Remove All", command=self.remove_all)
+        self.remove_all_button = tk.Button(self.controls_frame, text="Remove All", command=self.remove_all, background="#f0e5e5")
         self.remove_all_button.pack(fill=tk.X, pady=2)
 
         # Generate list button
@@ -243,7 +327,7 @@ class MainGUI:
         self.run_tests_in_queue_button.pack(fill=tk.X, pady=0, side='bottom')
 
         # Queue for tasks
-        self.setup_queue = setup_queue
+        self.setup_queue = task_queue
         self.task_queue = Queue()
 
         if not empty_task_list:
@@ -251,7 +335,12 @@ class MainGUI:
 
         # Build the bottom gp frame content
         for global_parameter in configurations['global']:
-            gp_frame = tk.Frame(self.bottom_gp_frame, borderwidth=1, relief='ridge', name=f"_{global_parameter}_frame")
+            gp_frame = tk.Frame(
+                self.bottom_gp_frame,
+                padx=5,
+                #borderwidth=1,
+                #relief='ridge',
+                name=f"_{global_parameter}_frame")
             gp_frame.pack(fill=tk.X, pady=0)
             label = tk.Label(gp_frame, text=f'{global_parameter}:', anchor='w', width=15)
             label.pack(side=tk.LEFT)
@@ -280,31 +369,43 @@ class MainGUI:
                 self.gp_open_function(global_parameter, entry_var.get())
             open_button = tk.Button(gp_frame, text='Open', command=open_action)
             open_button.pack(side=tk.LEFT)
+        
+        # add a little space in the gp_frame
+        gp_space_frame = tk.Frame(self.bottom_gp_frame,height=5)
+        gp_space_frame.pack()
 
         # Build the bottom Credentials frame content
         # Username frame
-        username_frame = tk.Frame(self.bottom_credentials_frame, borderwidth=1, relief='ridge')
+        username_frame = tk.Frame(
+            self.bottom_credentials_frame,
+            #borderwidth=1,
+            #relief='ridge'
+            )
         username_frame.pack(fill=tk.X, pady=0)
         username_label = tk.Label(username_frame, text="Username:")
         username_label.pack(side=tk.LEFT, padx=5)
         self.username_var = tk.StringVar()
         self.username_entry = tk.Entry(username_frame, textvariable=self.username_var)
-        self.username_entry.pack(side=tk.RIGHT, padx=1)
+        self.username_entry.pack(side=tk.RIGHT, padx=5)
         # Password frame
-        password_frame = tk.Frame(self.bottom_credentials_frame, borderwidth=1, relief='ridge')
+        password_frame = tk.Frame(
+            self.bottom_credentials_frame,
+            #borderwidth=1,
+            #relief='ridge'
+            )
         password_frame.pack(fill=tk.X, pady=0)
         password_label = tk.Label(password_frame, text="Password:")
         password_label.pack(side=tk.LEFT, padx=5)
         self.password_var = tk.StringVar()
         self.password_entry = tk.Entry(password_frame, textvariable=self.password_var, show="*")
-        self.password_entry.pack(side=tk.RIGHT, padx=1)
+        self.password_entry.pack(side=tk.RIGHT, padx=5)
         # Buttons frame
         buttons_frame = tk.Frame(self.bottom_credentials_frame)
         buttons_frame.pack(fill=tk.X, pady=5)
         self.commit_button = tk.Button(buttons_frame, text="Commit", command=self.commit_credentials,width=7)
-        self.commit_button.pack(side=tk.LEFT, padx=0)
+        self.commit_button.pack(side=tk.LEFT, padx=5)
         self.clear_button = tk.Button(buttons_frame, text="Clear", command=self.clear_credentials)
-        self.clear_button.pack(side=tk.LEFT, padx=5)
+        self.clear_button.pack(side=tk.LEFT, padx=0)
 
     def commit_credentials(self):
         if self.commit_button.cget("text") == "Commit":
@@ -324,8 +425,6 @@ class MainGUI:
             self.password_entry.config(state='normal')
             self.commit_button.config(text="Commit")
 
-
-
     def show_preferences(self):
         preferences_window = tk.Toplevel(self.root)
         preferences_window.title("Preferences")
@@ -336,7 +435,7 @@ class MainGUI:
         preferences_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
 
         # VNC Viewer path frame
-        vnc_frame = tk.Frame(preferences_window, borderwidth=1, relief='ridge')
+        vnc_frame = tk.LabelFrame(preferences_window,text="Global")
         vnc_frame.pack(fill=tk.X, padx=10, pady=10)
 
         # Label for VNC Viewer path
@@ -349,7 +448,6 @@ class MainGUI:
         vnc_entry.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Button to change the VNC Viewer path
-
         def change_vnc_path():
             current_path = self.vnc_viewer_path_var.get()
             initial_dir = os.path.dirname(current_path) if current_path else '/'
@@ -365,10 +463,91 @@ class MainGUI:
         change_path_button = tk.Button(vnc_frame, text="Change Path", command=change_vnc_path)
         change_path_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        # TCSS LabelFrame
+        tcss_frame = tk.LabelFrame(preferences_window, text="TCSS")
+        tcss_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        # TCSS .bin files destination folder
+        def edit_tcss_bin_folder():
+            folder_path = filedialog.askdirectory(initialdir=self.configurations['tcss']['global']['bin_file_destination_folder'])
+            if folder_path:
+                self.tcss_bin_var.set(folder_path)
+                self.configurations['tcss']['global']['bin_file_destination_folder'] = folder_path
+                save_configurations(self.configurations, self.config_file_path)
+
+        tcss_bin_frame = tk.Frame(tcss_frame)
+        tcss_bin_frame.pack(fill="x")
+        tcss_bin_label = tk.Label(tcss_bin_frame, text=".bin files destination folder:", anchor='w', width=20)
+        tcss_bin_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tcss_bin_var = tk.StringVar(value=self.configurations['tcss']['global']['bin_file_destination_folder'])
+        tcss_bin_entry = tk.Entry(tcss_bin_frame, textvariable=self.tcss_bin_var, width=50, state='readonly')
+        tcss_bin_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_bin_button = tk.Button(tcss_bin_frame, text="Change Path", command=edit_tcss_bin_folder)
+        tcss_bin_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # TCSS SigTest results folder
+        def edit_tcss_sigtest_folder():
+            folder_path = filedialog.askdirectory(initialdir=self.configurations['tcss']['global']['sigtest_results_folder'])
+            if folder_path:
+                self.tcss_sigtest_var.set(folder_path)
+                self.configurations['tcss']['global']['sigtest_results_folder'] = folder_path
+                save_configurations(self.configurations, self.config_file_path)
+
+        tcss_sigtest_frame = tk.Frame(tcss_frame)
+        tcss_sigtest_frame.pack(fill="x")
+        tcss_sigtest_label = tk.Label(tcss_sigtest_frame, text="SigTest results folder:", anchor='w', width=20)
+        tcss_sigtest_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tcss_sigtest_var = tk.StringVar(value=self.configurations['tcss']['global']['sigtest_results_folder'])
+        tcss_sigtest_entry = tk.Entry(tcss_sigtest_frame, textvariable=self.tcss_sigtest_var, width=50, state='readonly')
+        tcss_sigtest_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_sigtest_button = tk.Button(tcss_sigtest_frame, text="Change Path", command=edit_tcss_sigtest_folder)
+        tcss_sigtest_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # eDP LabelFrame
+        edp_frame = tk.LabelFrame(preferences_window, text="eDP")
+        edp_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        # eDP Jitter data folder
+        def edit_edp_jitter_folder():
+            folder_path = filedialog.askdirectory(initialdir=self.configurations['edp']['global']['jitter_data_folder'])
+            if folder_path:
+                self.edp_jitter_var.set(folder_path)
+                self.configurations['edp']['global']['jitter_data_folder'] = folder_path
+                save_configurations(self.configurations, self.config_file_path)
+
+        edp_jitter_frame = tk.Frame(edp_frame)
+        edp_jitter_frame.pack(fill="x")
+        edp_jitter_label = tk.Label(edp_jitter_frame, text="Jitter data folder:", anchor='w', width=20)
+        edp_jitter_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.edp_jitter_var = tk.StringVar(value=self.configurations['edp']['global']['jitter_data_folder'])
+        edp_jitter_entry = tk.Entry(edp_jitter_frame, textvariable=self.edp_jitter_var, width=50, state='readonly')
+        edp_jitter_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_jitter_button = tk.Button(edp_jitter_frame, text="Change Path", command=edit_edp_jitter_folder)
+        edp_jitter_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # eDP EH EW data folder
+        def edit_edp_ehew_folder():
+            folder_path = filedialog.askdirectory(initialdir=self.configurations['edp']['global']['eye_data_folder'])
+            if folder_path:
+                self.edp_ehew_var.set(folder_path)
+                self.configurations['edp']['global']['eye_data_folder'] = folder_path
+                save_configurations(self.configurations, self.config_file_path)
+
+        edp_ehew_frame = tk.Frame(edp_frame)
+        edp_ehew_frame.pack(fill="x")
+        edp_ehew_label = tk.Label(edp_ehew_frame, text="EH EW data folder:", anchor='w', width=20)
+        edp_ehew_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.edp_ehew_var = tk.StringVar(value=self.configurations['edp']['global']['eye_data_folder'])
+        edp_ehew_entry = tk.Entry(edp_ehew_frame, textvariable=self.edp_ehew_var, width=50, state='readonly')
+        edp_ehew_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_ehew_button = tk.Button(edp_ehew_frame, text="Change Path", command=edit_edp_ehew_folder)
+        edp_ehew_button.pack(side=tk.LEFT, padx=5, pady=5)
+
         # Make the preferences window modal
         preferences_window.transient(self.root)
         preferences_window.grab_set()
         self.root.wait_window(preferences_window)
+
 
     def show_about(self):
         about_window = tk.Toplevel(self.root)
@@ -459,7 +638,27 @@ class MainGUI:
             change_indicator_event.clear()
 
     def run_tests_in_queue(self):
-        print("WIP!")
+        print("Tests in the queue:")
+        while not self.task_queue.empty():
+            test = self.task_queue.get()
+            print(test)
+        
+        # Start 7 threads
+        threads = [
+            threading.Thread(target=self.board_thread_function),
+            threading.Thread(target=self.intec_thread_function),
+            threading.Thread(target=self.unit_thread_function),
+            threading.Thread(target=self.switch_thread_function),
+            threading.Thread(target=self.scope_thread_function),
+            threading.Thread(target=self.jbert_thread_function),
+            threading.Thread(target=self.sixshot_thread_function),
+        ]
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
     def add_item(self):
         """Function to add a new item to the treeview using a custom input frame."""
@@ -546,6 +745,9 @@ class MainGUI:
         input_window.iconbitmap("MTC1_Logo.ico")
         input_window.resizable(False, False)
 
+        # Set the window position
+        input_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+
         # Make the input window modal
         input_window.transient(self.root)
         input_window.grab_set()
@@ -558,7 +760,7 @@ class MainGUI:
         # Corners Checkboxes
         corners_frame = tk.LabelFrame(top_frame, text="Corners")
         corners_frame.pack(fill='both', padx=5, pady=5, side="left")
-        Corners_checkbox_texts = ["NOM", "LVHT", "LVLT", "HVLT", "HVHT"]
+        Corners_checkbox_texts = TG.corners
         Corners_checkbox_vars = []
         for text in Corners_checkbox_texts:
             var = tk.IntVar()
@@ -573,7 +775,7 @@ class MainGUI:
         # TCSS ports
         tcss_ports_frame = tk.LabelFrame(tcss_frame, text="Ports")
         tcss_ports_frame.pack(fill='both', padx=5, pady=5, side='left')
-        tcss_ports_checkbox_texts = ["0", "1", "2"]
+        tcss_ports_checkbox_texts = TG.instances["tcss"]
         tcss_ports_checkbox_vars = []
         for text in tcss_ports_checkbox_texts:
             var = tk.IntVar()
@@ -584,7 +786,7 @@ class MainGUI:
         # TCSS lanes
         tcss_lanes_frame = tk.LabelFrame(tcss_frame, text="Lanes")
         tcss_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
-        tcss_lanes_checkbox_texts = ["0", "1", "2", "3"]
+        tcss_lanes_checkbox_texts = TG.lanes['tcss']
         tcss_lanes_checkbox_vars = []
         for text in tcss_lanes_checkbox_texts:
             var = tk.IntVar()
@@ -595,7 +797,7 @@ class MainGUI:
         # TCSS protocols
         tcss_protocols_frame = tk.LabelFrame(tcss_frame, text="Protocols")
         tcss_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
-        tcss_protocols_checkbox_texts = ['TBT20', 'TBT20.6', 'TBT10', 'TBT10.3', 'DP20']
+        tcss_protocols_checkbox_texts = TG.protocols["tcss"]
         tcss_protocols_checkbox_vars = []
         for text in tcss_protocols_checkbox_texts:
             var = tk.IntVar()
@@ -606,7 +808,7 @@ class MainGUI:
         # TCSS tests
         tcss_tests_frame = tk.LabelFrame(tcss_frame, text="Tests")
         tcss_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
-        tcss_tests_checkbox_texts = ["TxBaseSigtest_UiOnly", "TxBaseSigtest_JitterOnly", "tcss_rx_jtol"]
+        tcss_tests_checkbox_texts = TG.tests['tcss']
         tcss_tests_checkbox_vars = []
         for text in tcss_tests_checkbox_texts:
             var = tk.IntVar()
@@ -621,7 +823,7 @@ class MainGUI:
         # eDP lanes
         edp_lanes_frame = tk.LabelFrame(edp_frame, text="Lanes")
         edp_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
-        edp_lanes_checkbox_texts = ["0", "1", "2", "3"]
+        edp_lanes_checkbox_texts = TG.lanes['edp']
         edp_lanes_checkbox_vars = []
         for text in edp_lanes_checkbox_texts:
             var = tk.IntVar()
@@ -632,7 +834,7 @@ class MainGUI:
         # eDP protocols
         edp_protocols_frame = tk.LabelFrame(edp_frame, text="Protocols")
         edp_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
-        edp_protocols_checkbox_texts = ['8.1']
+        edp_protocols_checkbox_texts = TG.protocols['edp']
         edp_protocols_checkbox_vars = []
         for text in edp_protocols_checkbox_texts:
             var = tk.IntVar()
@@ -643,7 +845,7 @@ class MainGUI:
         # eDP tests
         edp_tests_frame = tk.LabelFrame(edp_frame, text="Tests")
         edp_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
-        edp_tests_checkbox_texts = ["EHEW", "Jitters"]
+        edp_tests_checkbox_texts = TG.tests['edp']
         edp_tests_checkbox_vars = []
         for text in edp_tests_checkbox_texts:
             var = tk.IntVar()
@@ -661,168 +863,6 @@ class MainGUI:
 
         # Wait for the input window to be closed before returning to the main window
         self.root.wait_window(input_window)
-
-    def add_item_(self):
-        """Function to add a new item to the treeview using a custom input frame."""
-
-        def on_submit():
-            tests = []
-            corners = [val['text'] for val in Corners_checkbox_vars if val['value'].get() == 1]
-            tcss_ports = [val['text'] for val in tcss_ports_checkbox_vars if val['value'].get() == 1]
-            tcss_lanes = [val['text'] for val in tcss_lanes_checkbox_vars if val['value'].get() == 1]
-            tcss_protocols = [val['text'] for val in tcss_protocols_checkbox_vars if val['value'].get() == 1]
-            tcss_tests = [val['text'] for val in tcss_tests_checkbox_vars if val['value'].get() == 1]
-            edp_lanes = [val['text'] for val in edp_lanes_checkbox_vars if val['value'].get() == 1]
-            edp_protocols = [val['text'] for val in edp_protocols_checkbox_vars if val['value'].get() == 1]
-            edp_tests = [val['text'] for val in edp_tests_checkbox_vars if val['value'].get() == 1]
-            for corner in corners:
-                for port in tcss_ports:
-                    for lane in tcss_lanes:
-                        for protocol in tcss_protocols:
-                            for test in tcss_tests:
-                                tests.append([corner, 'TCSS', port, lane, protocol, test])
-            for corner in corners:
-                for lane in edp_lanes:
-                    for protocol in edp_protocols:
-                        for test in edp_tests:
-                            tests.append([corner, 'eDP', 0, lane, protocol, test])
-            for test in tests:
-                self.tree.insert('', 'end', values=test)
-                self.task_queue.put(test)
-            input_window.destroy()
-
-        input_window = tk.Toplevel(self.root)
-        input_window.title("Input")
-        input_window.iconbitmap("MTC1_Logo.ico")
-        input_window.resizable(False,False)
-
-        # Make the input window modal
-        input_window.transient(self.root)
-        input_window.grab_set()
-
-        top_frame = tk.Frame(input_window)
-        bottom_frame = tk.Frame(input_window)
-        top_frame.pack()
-        bottom_frame.pack()
-
-        # Corners Checkboxes
-        corners_frame = tk.LabelFrame(top_frame, text="Corners")
-        corners_frame.pack(fill='both', padx=5, pady=5, side="left")
-        Corners_checkbox_texts = [
-            "NOM",
-            "LVHT",
-            "LVLT",
-            "HVLT",
-            "HVHT"
-        ]
-        Corners_checkbox_vars = []
-        for text in Corners_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(corners_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            Corners_checkbox_vars.append({'value': var, 'text': text})
-
-        # tcss
-        tcss_frame = tk.LabelFrame(top_frame, text="TCSS")
-        tcss_frame.pack(fill='both', padx=5, pady=5, side='left')
-        # tcss ports
-        tcss_ports_frame = tk.LabelFrame(tcss_frame, text="Ports")
-        tcss_ports_frame.pack(fill='both', padx=5, pady=5, side='left')
-        tcss_ports_checkbox_texts = ["0", "1", "2"]
-        tcss_ports_checkbox_vars = []
-        for text in tcss_ports_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(tcss_ports_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            tcss_ports_checkbox_vars.append({'value': var, 'text': text})
-        # tcss lanes
-        tcss_lanes_frame = tk.LabelFrame(tcss_frame, text="Lanes")
-        tcss_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
-        tcss_lanes_checkbox_texts = ["0", "1", "2", "3"]
-        tcss_lanes_checkbox_vars = []
-        for text in tcss_lanes_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(tcss_lanes_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            tcss_lanes_checkbox_vars.append({'value': var, 'text': text})
-        # tcss protocols
-        tcss_protocols_frame = tk.LabelFrame(tcss_frame, text="Protocols")
-        tcss_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
-        tcss_protocols_checkbox_texts = [
-            'TBT20',
-            'TBT20.6',
-            'TBT10',
-            'TBT10.3',
-            'DP20'
-        ]
-        tcss_protocols_checkbox_vars = []
-        for text in tcss_protocols_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(tcss_protocols_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            tcss_protocols_checkbox_vars.append({'value': var, 'text': text})
-        # tcss tests
-        tcss_tests_frame = tk.LabelFrame(tcss_frame, text="Tests")
-        tcss_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
-        tcss_tests_checkbox_texts = [
-            "TxBaseSigtest_UiOnly",
-            "TxBaseSigtest_JitterOnly",
-            "tcss_rx_jtol"
-        ]
-        tcss_tests_checkbox_vars = []
-        for text in tcss_tests_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(tcss_tests_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            tcss_tests_checkbox_vars.append({'value': var, 'text': text})
-
-        # edp
-        edp_frame = tk.LabelFrame(top_frame, text="eDP")
-        edp_frame.pack(fill='both', padx=5, pady=5, side='left')
-        # edp lanes
-        edp_lanes_frame = tk.LabelFrame(edp_frame, text="Lanes")
-        edp_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
-        edp_lanes_checkbox_texts = ["0", "1", "2", "3"]
-        edp_lanes_checkbox_vars = []
-        for text in edp_lanes_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(edp_lanes_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            edp_lanes_checkbox_vars.append({'value': var, 'text': text})
-        # edp protocols
-        edp_protocols_frame = tk.LabelFrame(edp_frame, text="Protocols")
-        edp_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
-        edp_protocols_checkbox_texts = [
-            '8.1'
-        ]
-        edp_protocols_checkbox_vars = []
-        for text in edp_protocols_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(edp_protocols_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            edp_protocols_checkbox_vars.append({'value': var, 'text': text})
-        # edp tests
-        edp_tests_frame = tk.LabelFrame(edp_frame, text="Tests")
-        edp_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
-        edp_tests_checkbox_texts = ["EHEW", "Jitters"]
-        edp_tests_checkbox_vars = []
-        for text in edp_tests_checkbox_texts:
-            var = tk.IntVar()
-            checkbox = tk.Checkbutton(edp_tests_frame, text=text, variable=var)
-            checkbox.pack(anchor='w')
-            edp_tests_checkbox_vars.append({'value': var, 'text': text})
-
-        # Submit button
-        submit_button = tk.Button(bottom_frame, text="Submit", command=on_submit)
-        submit_button.pack(padx=10,pady=10,side='right')
-
-        # Cancel Button
-        submit_button = tk.Button(bottom_frame, text="Cancel", command=input_window.destroy)
-        submit_button.pack(padx=10,pady=10,side='right')
-
-        # Wait for the input window to be closed before returning to the main window
-        self.root.wait_window(input_window)
-
 
     def remove_item(self):
         """Function to remove the selected item from the treeview."""
@@ -844,7 +884,29 @@ class MainGUI:
             if len(values) == len(self.columns):  # Check if the entered values match the number of columns
                 self.tree.insert('', tk.END, values=values)
         while not tmp.empty():
-            self.setup_queue.put(tmp.get())
+            self.task_queue.put(tmp.get())
+
+    def board_thread_function(self):
+        print("Board Thread running")
+
+    def intec_thread_function(self):
+        print("Intec Thread running")
+
+    def unit_thread_function(self):
+        print("Unit Thread running")
+
+    def switch_thread_function(self):
+        print("Switch Thread running")
+
+    def scope_thread_function(self):
+        print("Scope Thread running")
+
+    def jbert_thread_function(self):
+        print("Jbert Thread running")
+
+    def sixshot_thread_function(self):
+        print("SixShot Thread running")
+
 
     def on_closing(self):
         save_configurations(self.configurations, self.config_file_path)
@@ -852,101 +914,17 @@ class MainGUI:
 
 
 class MainClass():
-    def __init__(self, empty_task_list=False) -> None:
+    def __init__(self, empty_task_list=True) -> None:
         self.empty_task_list = empty_task_list
         self.task_queue = Queue()
         self.config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mtc1.json')
-        self.configurations = self.load_configurations(self.config_file_path)
+        self.configurations = load_configurations(self.config_file_path)
         self.DoTechnicals()
-
-    def load_configurations(self, file_path):
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as file:
-                return json.load(file)
-        else:
-            # Return default configurations if the file doesn't exist
-            print("Problem loading configuration file !!!")
-            return {
-                "global": {
-                    "Scope IP": "HA03ESIO0004",
-                    "JBERT IP": "7.7.7.7",
-                    "Switch IP": "1.10.5.59",
-                    "Switch Map Path": r"T:\ATD_IO\LNL\PCIe5\LNL_6shot_Tx_Switch_Map.csv",
-                    "6-Shot Host": r"ha03hfst0021"
-                },
-                "tcss": {
-                    "global": {
-                        "bin_file_destination_folder": r"bin\dest",
-                        "sigtest_results_folder": r"sigtest\results\dest"
-                    },
-                    "TBT10": {
-                        "scope_preset_path": r"scope\path",
-                        "jbert_preset_path": r"jbert\path",
-                        "preset": 2
-                    },
-                    "TBT20": {
-                        "scope_preset_path": r"scope\path",
-                        "jbert_preset_path": r"jbert\path",
-                        "preset": 2
-                    },
-                    "DP20": {
-                        "scope_preset_path": r"scope\path",
-                        "jbert_preset_path": r"jbert\path",
-                        "preset": 1
-                    }
-                },
-                "edp": {
-                    "global": {
-                        "jitter_data_folder": r"jitter\data\folder",
-                        "eye_data_folder": r"eye\data\folder"
-                    },
-                    "8.1": {
-                        "scope_preset_path": r"scope\path",
-                        "jbert_preset_path": r"jbert\path",
-                        "preset": 0
-                    }
-                }
-            }
 
     def DoTechnicals(self):
         self.setup_tasks = Queue()
-        self.TaskGenerator()
+        self.setup_tasks = TG.TaskGenerator(self.setup_tasks)
         self.RunGUI_in_new_Thread()
-
-    def TaskGenerator(self):
-        corners = ["NOM", "LVHT", "LVLT", "HVLT", "HVHT"]
-        phy_s = ["tcss", "edp"]
-        tests = {
-            "tcss": [
-                "ui_ssc_eye",
-                "rise_fall_time",
-                "jitter",
-                "ac_common_mode",
-                "transmitter_equalization",
-                "electrical_idle_voltage"
-            ],
-            "edp": ["EHEW", "Jitters"],
-        }
-        instances = {
-            "tcss": [0, 1, 2],
-            "edp": [0],
-        }
-        lanes = {
-            "tcss": [0, 3],
-            "edp": [0, 2],
-        }
-        protocols = {
-            "tcss": ["TBT20", "TBT10", "DP20"],
-            "edp": ["8.1"],
-        }
-        for corner in corners:
-            for phy in phy_s:
-                for instance in instances[phy]:
-                    for lane in lanes[phy]:
-                        for protocol in protocols[phy]:
-                            for test in tests[phy]:
-                                new_task = [corner, phy, instance, lane, protocol, test]
-                                self.setup_tasks.put(new_task)
 
     def RunGUI_in_new_Thread(self):
         # Create a new thread targeting the function that initializes and runs the GUI.
