@@ -230,7 +230,7 @@ class MainGUI:
         self.menu = tk.Menu(self.menu_bar, tearoff=0)
         self.menu.add_command(label="Preferences", command=self.show_preferences)
         self.menu.add_separator()
-        self.menu.add_command(label="Exit", command=self.root.quit)
+        self.menu.add_command(label="Exit", command=self.on_closing)
         self.menu_bar.add_cascade(label="Menu", menu=self.menu)
 
         # Add "Help" to the menu bar
