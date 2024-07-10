@@ -8,29 +8,44 @@
     },
     "tcss": {
         "global": {
-            "bin_file_destination_folder": "bin\\dest",
-            "sigtest_results_folder": "sigtest\\results\\dest"
+            "bin_file_destination_folder": "bin_file_destination_folder",
+            "sigtest_results_folder": "sigtest_results_folder"
         },
-        "TBT10 / TBT10.3": {
-            "scope_preset_path": "scope\\path",
-            "jbert_preset_path": "jbert\\path",
-            "preset": 2
+        "usb4 gen2": {
+            "preset": 2,
+            "ui_ssc_eye scope setup path": "ui_ssc_eyescope setup path",
+            "rise_fall_time scope setup path": "rise_fall_timescope setup path",
+            "jitter scope setup path": "jitter scope setup path",
+            "jitter jbert setup path": "jitter jbert setup path",
+            "ac_common_mode scope setup path": "ac_common_mode scope setup path",
+            "transmitter_equalization scope setup path": "transmitter_equalization scope setup path",
+            "electrical_idle_voltage scope setup path": "electrical_idle_voltage scope setup path"
         },
-        "TBT20 / TBT20.6": {
-            "scope_preset_path": "scope\\path",
-            "jbert_preset_path": "jbert\\path",
-            "preset": 2
+        "usb4 gen3": {
+            "preset": 2,
+            "ui_ssc_eye scope setup path": "ui_ssc_eyescope setup path",
+            "rise_fall_time scope setup path": "rise_fall_timescope setup path",
+            "jitter scope setup path": "jitter scope setup path",
+            "jitter jbert setup path": "jitter jbert setup path",
+            "ac_common_mode scope setup path": "ac_common_mode scope setup path",
+            "transmitter_equalization scope setup path": "transmitter_equalization scope setup path",
+            "electrical_idle_voltage scope setup path": "electrical_idle_voltage scope setup path"
         },
-        "DP20": {
-            "scope_preset_path": "scope\\path",
-            "jbert_preset_path": "jbert\\path",
-            "preset": 1
+        "dp2.0": {
+            "preset": 1,
+            "ui_ssc_eye scope setup path": "ui_ssc_eyescope setup path",
+            "rise_fall_time scope setup path": "rise_fall_timescope setup path",
+            "jitter scope setup path": "jitter scope setup path",
+            "jitter jbert setup path": "jitter jbert setup path",
+            "ac_common_mode scope setup path": "ac_common_mode scope setup path",
+            "transmitter_equalization scope setup path": "transmitter_equalization scope setup path",
+            "electrical_idle_voltage scope setup path": "electrical_idle_voltage scope setup path"
         }
     },
     "edp": {
         "global": {
-            "jitter_data_folder": "jitter\\data\\folder",
-            "eye_data_folder": "eye\\data\\folder"
+            "jitter_data_folder": "jitter_data_folder",
+            "eye_data_folder": "eye_data_folder"
         },
         "8.1": {
             "scope_preset_path": "scope\\path",
