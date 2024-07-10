@@ -911,6 +911,7 @@ class MainGUI:
     def on_closing(self):
         save_configurations(self.configurations, self.config_file_path)
         self.root.destroy()
+        exit()
 
 
 class MainClass():
