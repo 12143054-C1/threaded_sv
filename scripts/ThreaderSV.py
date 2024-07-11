@@ -1,4 +1,3 @@
-from queue import Queue
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog, PhotoImage
@@ -74,6 +73,34 @@ change_indicator_event = threading.Event()
 
 
 # global functions
+class Queue:
+    def __init__(self):
+        self.queue = []
+        self.lock = threading.Lock()
+
+    def put(self, item):
+        with self.lock:
+            self.queue.append(item)
+
+    def get(self):
+        with self.lock:
+            if len(self.queue) == 0:
+                return None
+            return self.queue.pop(0)
+
+    def size(self):
+        with self.lock:
+            return len(self.queue)
+        
+    def empty(self):
+        with self.lock:
+            return len(self.queue) == 0
+    
+    def show_all(self):
+        with self.lock:
+            return self.queue
+
+
 def load_configurations(file_path):
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
@@ -219,6 +246,10 @@ class MainGUI:
         self.vnc_viewer_path = r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe"
         self.generated_from_list = False
 
+        # Mutexes
+        self.tree_lock  = threading.Lock()
+        self.pause_lock = threading.Lock()
+
         # Add Menu
         self.menu_bar = tk.Menu(self.root)
         self.root.config(menu=self.menu_bar)
@@ -245,8 +276,12 @@ class MainGUI:
         # Define top and bottom frames
         self.top_frame = tk.Frame(root)
         self.top_frame.pack(fill=tk.BOTH, expand=True)
+        self.top_controls_frame = tk.Frame(self.top_frame)
+        self.top_controls_frame.pack(fill=tk.BOTH,side='left',padx=5)
+        self.top_trees_frame = tk.Frame(self.top_frame)
+        self.top_trees_frame.pack(fill=tk.BOTH,expand=True)
         separator = ttk.Separator(root, orient='horizontal')
-        separator.pack(fill=tk.X, padx=5, pady=10)
+        separator.pack(fill=tk.X, padx=5, pady=5)
         self.bottom_frame = tk.Frame(root)
         self.bottom_frame.pack(fill=tk.X, anchor="s")
         #self.bottom_gp_frame = tk.Frame(self.bottom_frame)
@@ -260,23 +295,42 @@ class MainGUI:
         # Define the columns
         self.columns = ('corner', 'phy', 'port', 'lane', 'protocol', 'test')
 
-        # Create the Treeview
-        self.tree = ttk.Treeview(self.top_frame, columns=self.columns, show="headings")
+        # Define top frames for job queue and finished jobs
+        self.job_queue_frame = tk.LabelFrame(self.top_trees_frame, text="Job Queue")
+        self.job_queue_frame.grid(row=0,column=0,sticky='nsew',padx=5)
+        #self.job_queue_frame.pack(padx=5, pady=5,expand=True,fill=tk.BOTH)#,side=tk.LEFT, fill=tk.BOTH, expand=True, anchor="w")
 
-        # Define headings and column stretch
+        self.finished_jobs_frame = tk.LabelFrame(self.top_trees_frame, text="Finished Jobs")
+        self.finished_jobs_frame.grid(row=0,column=1,sticky='nsew',padx=5)
+        #self.finished_jobs_frame.pack(padx=5, pady=5,expand=True,fill=tk.BOTH)#,side=tk.LEFT, fill=tk.BOTH, expand=True, anchor="w")
+
+        self.top_trees_frame.columnconfigure(0, weight=1)
+        self.top_trees_frame.columnconfigure(1, weight=1)
+        self.top_trees_frame.rowconfigure(0, weight=1)
+
+        # Create the Job Queue Treeview
+        self.job_queue_tree = ttk.Treeview(self.job_queue_frame, columns=self.columns, show="headings")
         for col in self.columns:
-            self.tree.heading(col, text=col.title())
-            self.tree.column(col, stretch=tk.YES, width=100)  # Set width of each column
+            self.job_queue_tree.heading(col, text=col.title())
+            self.job_queue_tree.column(col, stretch=tk.YES, width=100)
+        self.job_queue_scrollbar = ttk.Scrollbar(self.job_queue_frame, orient=tk.VERTICAL, command=self.job_queue_tree.yview)
+        self.job_queue_scrollbar.pack(side=tk.RIGHT, fill='y')
+        self.job_queue_tree.pack(fill=tk.BOTH, expand=True)
+        self.job_queue_tree.configure(yscrollcommand=self.job_queue_scrollbar.set)
 
-        # Add a scrollbar
-        self.scrollbar = ttk.Scrollbar(self.top_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.scrollbar.pack(side=tk.RIGHT, fill='y')  # Pack the scrollbar Right to the treeview
-        self.tree.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)  # Expand the treeview to take available space
-        self.tree.configure(yscrollcommand=self.scrollbar.set)
+        # Create the Finished Jobs Treeview
+        self.finished_jobs_tree = ttk.Treeview(self.finished_jobs_frame, columns=self.columns, show="headings")
+        for col in self.columns:
+            self.finished_jobs_tree.heading(col, text=col.title())
+            self.finished_jobs_tree.column(col, stretch=tk.YES, width=100)
+        self.finished_jobs_scrollbar = ttk.Scrollbar(self.finished_jobs_frame, orient=tk.VERTICAL, command=self.finished_jobs_tree.yview)
+        self.finished_jobs_scrollbar.pack(side=tk.RIGHT, fill='y')
+        self.finished_jobs_tree.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.finished_jobs_tree.configure(yscrollcommand=self.finished_jobs_scrollbar.set)
 
         # Frame for indicators (boot indicator, equipment indicator, etc...)
-        self.indicators_frame = tk.LabelFrame(self.top_frame, text='Equipment Status', labelanchor='n')
-        self.indicators_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.indicators_frame = tk.LabelFrame(self.top_controls_frame, text='Equipment Status', labelanchor='n')
+        self.indicators_frame.pack(fill=tk.X, padx=0)
         self.indicators_frame.configure()
 
         # Create Indicators
@@ -301,8 +355,8 @@ class MainGUI:
         threading.Thread(target=self.update_indicator, daemon=True).start()
 
         # Frame for controls (add/remove buttons)
-        self.controls_frame = tk.Frame(self.top_frame)
-        self.controls_frame.pack(fill=tk.BOTH, padx=5, pady=0, expand=True)
+        self.controls_frame = tk.Frame(self.top_controls_frame)
+        self.controls_frame.pack(fill=tk.BOTH, padx=0, pady=0, expand=True)
         self.controls_frame.configure()
 
         # Add button
@@ -706,12 +760,14 @@ class MainGUI:
             change_indicator_event.clear()
 
     def run_tests_in_queue(self):
+        threading.Thread(target=self._run_tests_in_queue_worker, daemon=True).start()
+
+    def _run_tests_in_queue_worker(self):
         print("Tests in the queue:")
-        while not self.task_queue.empty():
-            test = self.task_queue.get()
+        for test in self.task_queue.show_all():
             print(test)
-        
-        # Start 7 threads
+
+        # Start the other threads
         threads = [
             threading.Thread(target=self.board_thread_function),
             threading.Thread(target=self.intec_thread_function),
@@ -720,6 +776,7 @@ class MainGUI:
             threading.Thread(target=self.scope_thread_function),
             threading.Thread(target=self.jbert_thread_function),
             threading.Thread(target=self.sixshot_thread_function),
+            threading.Thread(target=self.jobber_thread_function)  # Start jobber thread
         ]
 
         for thread in threads:
@@ -747,6 +804,10 @@ class MainGUI:
                 frame.configure(fg="black")
 
         def on_submit():
+            with self.tree_lock:
+                on_submit_no_mutex()
+
+        def on_submit_no_mutex():
             tcss_condition = (any(var['value'].get() for var in Corners_checkbox_vars) and
                             any(var['value'].get() for var in tcss_ports_checkbox_vars) and
                             any(var['value'].get() for var in tcss_lanes_checkbox_vars) and
@@ -782,7 +843,7 @@ class MainGUI:
                             for test in edp_tests:
                                 tests.append([corner, 'eDP', 0, lane, protocol, test])
                 for test in tests:
-                    self.tree.insert('', 'end', values=test)
+                    self.job_queue_tree.insert('', 'end', values=test)
                     self.task_queue.put(test)
                 input_window.destroy()
             else:
@@ -933,10 +994,24 @@ class MainGUI:
         self.root.wait_window(input_window)
 
     def remove_item(self):
-        """Function to remove the selected item from the treeview."""
-        selected_items = self.tree.selection()  # Returns a list of selected items
+        with self.tree_lock:
+            self.remove_item_no_mutex()
+
+    def remove_item_no_mutex(self):
+        """Function to remove the selected item from the job queue treeview."""
+        selected_items = self.job_queue_tree.selection()  # Returns a list of selected items
         for selected_item in selected_items:
-            self.tree.delete(selected_item)
+            try:
+                item_values = self.job_queue_tree.item(selected_item)['values']
+                self.job_queue_tree.delete(selected_item)
+                
+                # Remove task from task_queue
+                for i, task in enumerate(list(self.task_queue.queue)):
+                    if task == item_values:
+                        del self.task_queue.queue[i]
+                        break
+            except:
+                print(f"Item {selected_item} not found")
 
     def remove_all(self):
         self.warn_before_removing_all_jobs("remove all pressed")
@@ -946,27 +1021,54 @@ class MainGUI:
         if response:
             if cause == "generating new list":
                 self.generated_from_list = True
-            self.remove_all_jobs()
+            print("Removing all, tree_lock = " + str(self.tree_lock))
+            with self.tree_lock:
+                self.remove_all_jobs()
 
     def remove_all_jobs(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        # Clear Job Queue Treeview
+        for item in self.job_queue_tree.get_children():
+            self.job_queue_tree.delete(item)
+
+        # Clear Finished Jobs Treeview
+        for item in self.finished_jobs_tree.get_children():
+            self.finished_jobs_tree.delete(item)
+
         self.task_queue.queue.clear()
         self.generated_from_list = False
 
     def generate_list(self):
-        if self.tree.get_children():
+        with self.tree_lock:
+            self.generate_list_no_mutex()
+
+    def generate_list_no_mutex(self):
+        if self.job_queue_tree.get_children():
             self.warn_before_removing_all_jobs("generating new list")
         tmp = Queue()
         while not self.setup_queue.empty():
             values = self.setup_queue.get()
             tmp.put(values)
             if len(values) == len(self.columns):  # Check if the entered values match the number of columns
-                self.tree.insert('', tk.END, values=values)
+                self.job_queue_tree.insert('', tk.END, values=values)
         while not tmp.empty():
             task = tmp.get()
             self.task_queue.put(task)
             self.setup_queue.put(task)
+
+    def jobber_thread_function(self):
+        while True:
+            if self.task_queue.empty():
+                break
+            else:
+                with self.tree_lock:
+                    # Simulate job processing and marking as finished
+                    print("Jobbing, tree_lock = " + str(self.tree_lock))
+                    job = self.task_queue.get()
+                    # Here you would have logic to determine when a job is finished.
+                    # For now, we'll just simulate a delay and then mark it as finished.
+                    threading.Event().wait(1)  # Simulate time taken to complete the job
+                    self.job_queue_tree.delete(self.job_queue_tree.get_children()[0])  # Remove job from queue
+                    self.finished_jobs_tree.insert('', 'end', values=job)  # Add job to finished
 
     def board_thread_function(self):
         print("Board Thread running")
