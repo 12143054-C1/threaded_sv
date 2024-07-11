@@ -6,7 +6,7 @@ cwd = os.getcwd()
 # Append the current working directory to sys.path
 if cwd not in sys.path:
     sys.path.append(cwd)
-from GUI import SimpleGUI  # Assuming your Tkinter class is saved as simple_gui.py
+from junk.GUI import SimpleGUI  # Assuming your Tkinter class is saved as simple_gui.py
 
 def run_gui():
     root = tk.Tk()

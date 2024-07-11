@@ -8,6 +8,8 @@ import sys
 import datetime
 from PIL import Image, ImageTk
 import json
+import tkinter.ttk as ttk
+
 
 
 # GLOBALS
@@ -215,6 +217,7 @@ class MainGUI:
 
         # Default Preferences
         self.vnc_viewer_path = r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe"
+        self.generated_from_list = False
 
         # Add Menu
         self.menu_bar = tk.Menu(self.root)
@@ -425,142 +428,30 @@ class MainGUI:
             self.password_entry.config(state='normal')
             self.commit_button.config(text="Commit")
 
-    def show_preferences_(self):
+    def show_preferences(self):
+
+        y_pad = 2
+
         preferences_window = tk.Toplevel(self.root)
         preferences_window.title("Preferences")
         preferences_window.iconbitmap("MTC1_Logo.ico")
         preferences_window.resizable(False, False)
 
         # Set the window position
-        preferences_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
 
-        # VNC Viewer path frame
-        vnc_frame = tk.LabelFrame(preferences_window,text="Global")
-        vnc_frame.pack(fill=tk.X, padx=10, pady=10)
+        window_x = 10
+        window_y = 10
 
-        # Label for VNC Viewer path
-        vnc_label = tk.Label(vnc_frame, text="VNC Viewer Path:", anchor='w', width=20)
-        vnc_label.pack(side=tk.LEFT, padx=5, pady=5)
+        preferences_window.geometry(f"+{window_x}+{window_y}")
 
-        # Entry for VNC Viewer path
-        self.vnc_viewer_path_var = tk.StringVar(value=self.vnc_viewer_path)
-        vnc_entry = tk.Entry(vnc_frame, textvariable=self.vnc_viewer_path_var, width=50, state='readonly')
-        vnc_entry.pack(side=tk.LEFT, padx=5, pady=5)
 
-        # Button to change the VNC Viewer path
-        def change_vnc_path():
-            current_path = self.vnc_viewer_path_var.get()
-            initial_dir = os.path.dirname(current_path) if current_path else '/'
-            file_path = filedialog.askopenfilename(initialdir=initial_dir, filetypes=[("Executable files", "*.exe")])
-            if file_path:
-                self.vnc_viewer_path_var.set(file_path)
-                vnc_entry.config(state='normal')
-                vnc_entry.delete(0, tk.END)
-                vnc_entry.insert(0, file_path)
-                vnc_entry.config(state='readonly')
-                self.vnc_viewer_path = file_path
-
-        change_path_button = tk.Button(vnc_frame, text="Change Path", command=change_vnc_path)
-        change_path_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        # TCSS LabelFrame
-        tcss_frame = tk.LabelFrame(preferences_window, text="TCSS")
-        tcss_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        # TCSS .bin files destination folder
-        def edit_tcss_bin_folder():
-            folder_path = filedialog.askdirectory(initialdir=self.configurations['tcss']['global']['bin_file_destination_folder'])
-            if folder_path:
-                self.tcss_bin_var.set(folder_path)
-                self.configurations['tcss']['global']['bin_file_destination_folder'] = folder_path
-                save_configurations(self.configurations, self.config_file_path)
-
-        tcss_bin_frame = tk.Frame(tcss_frame)
-        tcss_bin_frame.pack(fill="x")
-        tcss_bin_label = tk.Label(tcss_bin_frame, text=".bin files destination folder:", anchor='w', width=20)
-        tcss_bin_label.pack(side=tk.LEFT, padx=5, pady=5)
-        self.tcss_bin_var = tk.StringVar(value=self.configurations['tcss']['global']['bin_file_destination_folder'])
-        tcss_bin_entry = tk.Entry(tcss_bin_frame, textvariable=self.tcss_bin_var, width=50, state='readonly')
-        tcss_bin_entry.pack(side=tk.LEFT, padx=5, pady=5)
-        tcss_bin_button = tk.Button(tcss_bin_frame, text="Change Path", command=edit_tcss_bin_folder)
-        tcss_bin_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        # TCSS SigTest results folder
-        def edit_tcss_sigtest_folder():
-            folder_path = filedialog.askdirectory(initialdir=self.configurations['tcss']['global']['sigtest_results_folder'])
-            if folder_path:
-                self.tcss_sigtest_var.set(folder_path)
-                self.configurations['tcss']['global']['sigtest_results_folder'] = folder_path
-                save_configurations(self.configurations, self.config_file_path)
-
-        tcss_sigtest_frame = tk.Frame(tcss_frame)
-        tcss_sigtest_frame.pack(fill="x")
-        tcss_sigtest_label = tk.Label(tcss_sigtest_frame, text="SigTest results folder:", anchor='w', width=20)
-        tcss_sigtest_label.pack(side=tk.LEFT, padx=5, pady=5)
-        self.tcss_sigtest_var = tk.StringVar(value=self.configurations['tcss']['global']['sigtest_results_folder'])
-        tcss_sigtest_entry = tk.Entry(tcss_sigtest_frame, textvariable=self.tcss_sigtest_var, width=50, state='readonly')
-        tcss_sigtest_entry.pack(side=tk.LEFT, padx=5, pady=5)
-        tcss_sigtest_button = tk.Button(tcss_sigtest_frame, text="Change Path", command=edit_tcss_sigtest_folder)
-        tcss_sigtest_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        # eDP LabelFrame
-        edp_frame = tk.LabelFrame(preferences_window, text="eDP")
-        edp_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        # eDP Jitter data folder
-        def edit_edp_jitter_folder():
-            folder_path = filedialog.askdirectory(initialdir=self.configurations['edp']['global']['jitter_data_folder'])
-            if folder_path:
-                self.edp_jitter_var.set(folder_path)
-                self.configurations['edp']['global']['jitter_data_folder'] = folder_path
-                save_configurations(self.configurations, self.config_file_path)
-
-        edp_jitter_frame = tk.Frame(edp_frame)
-        edp_jitter_frame.pack(fill="x")
-        edp_jitter_label = tk.Label(edp_jitter_frame, text="Jitter data folder:", anchor='w', width=20)
-        edp_jitter_label.pack(side=tk.LEFT, padx=5, pady=5)
-        self.edp_jitter_var = tk.StringVar(value=self.configurations['edp']['global']['jitter_data_folder'])
-        edp_jitter_entry = tk.Entry(edp_jitter_frame, textvariable=self.edp_jitter_var, width=50, state='readonly')
-        edp_jitter_entry.pack(side=tk.LEFT, padx=5, pady=5)
-        edp_jitter_button = tk.Button(edp_jitter_frame, text="Change Path", command=edit_edp_jitter_folder)
-        edp_jitter_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        # eDP EH EW data folder
-        def edit_edp_ehew_folder():
-            folder_path = filedialog.askdirectory(initialdir=self.configurations['edp']['global']['eye_data_folder'])
-            if folder_path:
-                self.edp_ehew_var.set(folder_path)
-                self.configurations['edp']['global']['eye_data_folder'] = folder_path
-                save_configurations(self.configurations, self.config_file_path)
-
-        edp_ehew_frame = tk.Frame(edp_frame)
-        edp_ehew_frame.pack(fill="x")
-        edp_ehew_label = tk.Label(edp_ehew_frame, text="EH EW data folder:", anchor='w', width=20)
-        edp_ehew_label.pack(side=tk.LEFT, padx=5, pady=5)
-        self.edp_ehew_var = tk.StringVar(value=self.configurations['edp']['global']['eye_data_folder'])
-        edp_ehew_entry = tk.Entry(edp_ehew_frame, textvariable=self.edp_ehew_var, width=50, state='readonly')
-        edp_ehew_entry.pack(side=tk.LEFT, padx=5, pady=5)
-        edp_ehew_button = tk.Button(edp_ehew_frame, text="Change Path", command=edit_edp_ehew_folder)
-        edp_ehew_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        # Make the preferences window modal
-        preferences_window.transient(self.root)
-        preferences_window.grab_set()
-        self.root.wait_window(preferences_window)
-
-    def show_preferences(self):
-        preferences_window = tk.Toplevel(self.root)
-        preferences_window.title("Preferences")
-        preferences_window.iconbitmap("MTC1_Logo.ico")
-        preferences_window.resizable(False, False)
-
-        # (DO nOT) Set the window position
-        # preferences_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+        # Create a notebook widget
+        notebook = ttk.Notebook(preferences_window)
+        notebook.pack(fill="both", expand=True, padx=10, pady=y_pad)
 
         # Global preferences frame
-        global_frame = tk.LabelFrame(preferences_window,text="Global")
-        global_frame.pack(side='left', padx=10, pady=10,anchor='nw',fill="y")
-
+        global_frame = tk.Frame(notebook)
+        notebook.add(global_frame, text='Global')
 
         # VNC Viewer path frame
         vnc_frame = tk.Frame(global_frame)
@@ -569,12 +460,12 @@ class MainGUI:
 
         # Label for VNC Viewer path
         vnc_label = tk.Label(vnc_frame, text="VNC Viewer Path:", anchor='w', width=20)
-        vnc_label.pack(side=tk.LEFT, padx=5, pady=5)
+        vnc_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # Entry for VNC Viewer path
         self.vnc_viewer_path_var = tk.StringVar(value=self.vnc_viewer_path)
         vnc_entry = tk.Entry(vnc_frame, textvariable=self.vnc_viewer_path_var, width=50, state='readonly')
-        vnc_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        vnc_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # Button to change the VNC Viewer path
         def change_vnc_path():
@@ -590,11 +481,11 @@ class MainGUI:
                 self.vnc_viewer_path = file_path
 
         change_path_button = tk.Button(vnc_frame, text="Change Path", command=change_vnc_path)
-        change_path_button.pack(side=tk.LEFT, padx=5, pady=5)
+        change_path_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # TCSS LabelFrame
-        tcss_frame = tk.LabelFrame(preferences_window, text="TCSS")
-        tcss_frame.pack(side='left', padx=10, pady=10,anchor='nw',fill="y")
+        tcss_frame = tk.Frame(notebook)
+        notebook.add(tcss_frame, text='TCSS')
 
         # TCSS .bin files destination folder
         def edit_tcss_bin_folder():
@@ -607,12 +498,12 @@ class MainGUI:
         tcss_bin_frame = tk.Frame(tcss_frame)
         tcss_bin_frame.pack(fill="x")
         tcss_bin_label = tk.Label(tcss_bin_frame, text=".bin files destination folder:", anchor='w', width=20)
-        tcss_bin_label.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_bin_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
         self.tcss_bin_var = tk.StringVar(value=self.configurations['tcss']['global']['bin_file_destination_folder'])
         tcss_bin_entry = tk.Entry(tcss_bin_frame, textvariable=self.tcss_bin_var, width=50, state='readonly')
-        tcss_bin_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_bin_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
         tcss_bin_button = tk.Button(tcss_bin_frame, text="Change Path", command=edit_tcss_bin_folder)
-        tcss_bin_button.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_bin_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # TCSS SigTest results folder
         def edit_tcss_sigtest_folder():
@@ -625,27 +516,27 @@ class MainGUI:
         tcss_sigtest_frame = tk.Frame(tcss_frame)
         tcss_sigtest_frame.pack(fill="x")
         tcss_sigtest_label = tk.Label(tcss_sigtest_frame, text="SigTest results folder:", anchor='w', width=20)
-        tcss_sigtest_label.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_sigtest_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
         self.tcss_sigtest_var = tk.StringVar(value=self.configurations['tcss']['global']['sigtest_results_folder'])
         tcss_sigtest_entry = tk.Entry(tcss_sigtest_frame, textvariable=self.tcss_sigtest_var, width=50, state='readonly')
-        tcss_sigtest_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_sigtest_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
         tcss_sigtest_button = tk.Button(tcss_sigtest_frame, text="Change Path", command=edit_tcss_sigtest_folder)
-        tcss_sigtest_button.pack(side=tk.LEFT, padx=5, pady=5)
+        tcss_sigtest_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # Add USB4 Gen2, USB4 Gen3, and DP2.0 LabelFrames
         def create_protocol_frame(parent, protocol_name):
             protocol_frame = tk.LabelFrame(parent, text=protocol_name)
-            protocol_frame.pack(fill=tk.X, padx=10, pady=10)
+            protocol_frame.pack(fill=tk.X, padx=10, pady=y_pad)
 
             def create_test_frame(test_name):
                 test_frame = tk.Frame(protocol_frame)
                 test_frame.pack(fill="x")
 
                 test_label = tk.Label(test_frame, text=f"{test_name} Scope setup path:", anchor='w', width=30)
-                test_label.pack(side=tk.LEFT, padx=5, pady=5)
+                test_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
                 test_var = tk.StringVar(value=self.configurations['tcss'][protocol_name.lower()][test_name+" scope setup path"])
                 test_entry = tk.Entry(test_frame, textvariable=test_var, width=50, state='readonly')
-                test_entry.pack(side=tk.LEFT, padx=5, pady=5)
+                test_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
                 def edit_test_folder():
                     folder_path = filedialog.askdirectory(initialdir=test_var.get())
                     if folder_path:
@@ -653,16 +544,16 @@ class MainGUI:
                         self.configurations['tcss'][protocol_name.lower()][test_name+" scope setup path"] = folder_path
                         save_configurations(self.configurations, self.config_file_path)
                 test_button = tk.Button(test_frame, text="Change Path", command=edit_test_folder)
-                test_button.pack(side=tk.LEFT, padx=5, pady=5)
+                test_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
                 if test_name == 'jitter':
                     jbert_frame = tk.Frame(protocol_frame)
                     jbert_frame.pack(fill="x")
                     jbert_label = tk.Label(jbert_frame, text=f"{test_name} JBERT setup path:", anchor='w', width=30)
-                    jbert_label.pack(side=tk.LEFT, padx=5, pady=5)
+                    jbert_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
                     jbert_var = tk.StringVar(value=self.configurations['tcss'][protocol_name.lower()][test_name+" jbert setup path"])
                     jbert_entry = tk.Entry(jbert_frame, textvariable=jbert_var, width=50, state='readonly')
-                    jbert_entry.pack(side=tk.LEFT, padx=5, pady=5)
+                    jbert_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
                     def edit_jbert_folder():
                         folder_path = filedialog.askdirectory(initialdir=jbert_var.get())
                         if folder_path:
@@ -670,7 +561,7 @@ class MainGUI:
                             self.configurations['tcss'][protocol_name.lower()][test_name+" jbert setup path"] = folder_path
                             save_configurations(self.configurations, self.config_file_path)
                     jbert_button = tk.Button(jbert_frame, text="Change Path", command=edit_jbert_folder)
-                    jbert_button.pack(side=tk.LEFT, padx=5, pady=5)
+                    jbert_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
             tests = TG.tests['tcss']
             for test in tests:
@@ -682,8 +573,8 @@ class MainGUI:
         create_protocol_frame(tcss_frame, "DP2.0")
 
         # eDP LabelFrame
-        edp_frame = tk.LabelFrame(preferences_window, text="eDP")
-        edp_frame.pack(side='left', padx=10, pady=10,anchor='nw',fill="y")
+        edp_frame = tk.Frame(notebook)
+        notebook.add(edp_frame, text='eDP')
 
         # eDP Jitter data folder
         def edit_edp_jitter_folder():
@@ -696,12 +587,12 @@ class MainGUI:
         edp_jitter_frame = tk.Frame(edp_frame)
         edp_jitter_frame.pack(fill="x")
         edp_jitter_label = tk.Label(edp_jitter_frame, text="Jitter data folder:", anchor='w', width=20)
-        edp_jitter_label.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_jitter_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
         self.edp_jitter_var = tk.StringVar(value=self.configurations['edp']['global']['jitter_data_folder'])
         edp_jitter_entry = tk.Entry(edp_jitter_frame, textvariable=self.edp_jitter_var, width=50, state='readonly')
-        edp_jitter_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_jitter_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
         edp_jitter_button = tk.Button(edp_jitter_frame, text="Change Path", command=edit_edp_jitter_folder)
-        edp_jitter_button.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_jitter_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # eDP EH EW data folder
         def edit_edp_ehew_folder():
@@ -714,18 +605,17 @@ class MainGUI:
         edp_ehew_frame = tk.Frame(edp_frame)
         edp_ehew_frame.pack(fill="x")
         edp_ehew_label = tk.Label(edp_ehew_frame, text="EH EW data folder:", anchor='w', width=20)
-        edp_ehew_label.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_ehew_label.pack(side=tk.LEFT, padx=5, pady=y_pad)
         self.edp_ehew_var = tk.StringVar(value=self.configurations['edp']['global']['eye_data_folder'])
         edp_ehew_entry = tk.Entry(edp_ehew_frame, textvariable=self.edp_ehew_var, width=50, state='readonly')
-        edp_ehew_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_ehew_entry.pack(side=tk.LEFT, padx=5, pady=y_pad)
         edp_ehew_button = tk.Button(edp_ehew_frame, text="Change Path", command=edit_edp_ehew_folder)
-        edp_ehew_button.pack(side=tk.LEFT, padx=5, pady=5)
+        edp_ehew_button.pack(side=tk.LEFT, padx=5, pady=y_pad)
 
         # Make the preferences window modal
         preferences_window.transient(self.root)
         preferences_window.grab_set()
         self.root.wait_window(preferences_window)
-
 
     def show_about(self):
         about_window = tk.Toplevel(self.root)
@@ -1049,12 +939,24 @@ class MainGUI:
             self.tree.delete(selected_item)
 
     def remove_all(self):
-        """Function to remove all items from the treeview."""
+        self.warn_before_removing_all_jobs("remove all pressed")
+
+    def warn_before_removing_all_jobs(self, cause):
+        response = messagebox.askyesno("Warning", "This action will remove all current jobs.\nDo you want to proceed?")
+        if response:
+            if cause == "generating new list":
+                self.generated_from_list = True
+            self.remove_all_jobs()
+
+    def remove_all_jobs(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.task_queue.queue.clear()
+        self.generated_from_list = False
 
     def generate_list(self):
-        """Function to generate a list from setup."""
+        if self.tree.get_children():
+            self.warn_before_removing_all_jobs("generating new list")
         tmp = Queue()
         while not self.setup_queue.empty():
             values = self.setup_queue.get()
@@ -1062,7 +964,9 @@ class MainGUI:
             if len(values) == len(self.columns):  # Check if the entered values match the number of columns
                 self.tree.insert('', tk.END, values=values)
         while not tmp.empty():
-            self.task_queue.put(tmp.get())
+            task = tmp.get()
+            self.task_queue.put(task)
+            self.setup_queue.put(task)
 
     def board_thread_function(self):
         print("Board Thread running")
