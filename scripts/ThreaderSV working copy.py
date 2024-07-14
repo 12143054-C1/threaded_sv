@@ -854,20 +854,325 @@ class MainGUI:
             self.generate_list_button.configure(state='normal')
 
     def stop_tests(self):
-        pass
+        self.configure_play_stop_indicators('stop')
+        self.state.set("stopped")
+        stop_event.set()  # Signal jobber to stop
+        anti_lock_event.set()
 
     def run_tests_in_queue(self):
-        pass
+        self.configure_play_stop_indicators('play')
+        self.state.set("running")
+        stop_event.clear()
+        jobber_continue_event.set()  # Ensure jobber continues if it was paused
+        threading.Thread(target=self._run_tests_in_queue_worker, daemon=True).start()
 
+
+    def _run_tests_in_queue_worker(self):
+        print("Tests in the queue:")
+        for test in self.task_queue.show_all():
+            print(test)
+
+        # Start the other threads
+        threads = [
+            threading.Thread(target=self.jobber_thread_function),  # Start jobber thread
+            threading.Thread(target=self.board_thread_function),
+            threading.Thread(target=self.intec_thread_function),
+            threading.Thread(target=self.unit_thread_function),
+            threading.Thread(target=self.switch_thread_function),
+            threading.Thread(target=self.scope_thread_function),
+            threading.Thread(target=self.jbert_thread_function),
+            threading.Thread(target=self.sixshot_thread_function)
+        ]
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
     def add_item(self):
-        pass
+        """Function to add a new item to the treeview using a custom input frame."""
+
+        def update_submit_button():
+            if (any(var['value'].get() for var in tcss_ports_checkbox_vars + tcss_lanes_checkbox_vars + 
+                    tcss_protocols_checkbox_vars + tcss_tests_checkbox_vars) or
+                any(var['value'].get() for var in edp_lanes_checkbox_vars + edp_protocols_checkbox_vars + 
+                    edp_tests_checkbox_vars)):
+                submit_button.config(state='normal')
+            else:
+                submit_button.config(state='disabled')
+
+        def highlight_frame(frame, highlight=True):
+            if highlight:
+                frame.configure(fg="red")
+            else:
+                frame.configure(fg="black")
+
+        def on_submit():
+            threading.Thread(target=on_submit_thread_function).start()
+
+        def on_submit_thread_function():
+            if self.state.get() == "running":
+                if DEBUG:
+                        print_call_stack()
+                        print('[=]    tree LOCKED')
+                anti_lock_event.wait()
+                with self.tree_lock:
+                    on_submit_no_mutex()
+                    if DEBUG:
+                        print_call_stack()
+                        print(']    [ tree UNLOCKED')
+            else:
+                on_submit_no_mutex()
+
+        def on_submit_no_mutex():
+            tcss_condition = (any(var['value'].get() for var in Corners_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_ports_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_lanes_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_protocols_checkbox_vars) and
+                            any(var['value'].get() for var in tcss_tests_checkbox_vars))
+
+            edp_condition = (any(var['value'].get() for var in Corners_checkbox_vars) and
+                            any(var['value'].get() for var in edp_lanes_checkbox_vars) and
+                            any(var['value'].get() for var in edp_protocols_checkbox_vars) and
+                            any(var['value'].get() for var in edp_tests_checkbox_vars))
+
+            if tcss_condition or edp_condition:
+                # Proceed with adding items
+                tests = []
+                corners = [val['text'] for val in Corners_checkbox_vars if val['value'].get() == 1]
+                tcss_ports = [val['text'] for val in tcss_ports_checkbox_vars if val['value'].get() == 1]
+                tcss_lanes = [val['text'] for val in tcss_lanes_checkbox_vars if val['value'].get() == 1]
+                tcss_protocols = [val['text'] for val in tcss_protocols_checkbox_vars if val['value'].get() == 1]
+                tcss_tests = [val['text'] for val in tcss_tests_checkbox_vars if val['value'].get() == 1]
+                edp_lanes = [val['text'] for val in edp_lanes_checkbox_vars if val['value'].get() == 1]
+                edp_protocols = [val['text'] for val in edp_protocols_checkbox_vars if val['value'].get() == 1]
+                edp_tests = [val['text'] for val in edp_tests_checkbox_vars if val['value'].get() == 1]
+
+                for corner in corners:
+                    for port in tcss_ports:
+                        for lane in tcss_lanes:
+                            for protocol in tcss_protocols:
+                                for test in tcss_tests:
+                                    tests.append([corner, 'TCSS', port, lane, protocol, test])
+                for corner in corners:
+                    for lane in edp_lanes:
+                        for protocol in edp_protocols:
+                            for test in edp_tests:
+                                tests.append([corner, 'eDP', 0, lane, protocol, test])
+                for test in tests:
+                    self.job_queue_tree.insert('', 'end', values=test)
+                    self.task_queue.put(test)
+                input_window.destroy()
+            else:
+                # Highlight frames with missing checkboxes
+                highlight_frame(corners_frame, not any(var['value'].get() for var in Corners_checkbox_vars))
+                
+                tcss_active = any(var['value'].get() for var in tcss_ports_checkbox_vars + tcss_lanes_checkbox_vars + 
+                                tcss_protocols_checkbox_vars + tcss_tests_checkbox_vars)
+                if tcss_active:
+                    highlight_frame(tcss_ports_frame, not any(var['value'].get() for var in tcss_ports_checkbox_vars))
+                    highlight_frame(tcss_lanes_frame, not any(var['value'].get() for var in tcss_lanes_checkbox_vars))
+                    highlight_frame(tcss_protocols_frame, not any(var['value'].get() for var in tcss_protocols_checkbox_vars))
+                    highlight_frame(tcss_tests_frame, not any(var['value'].get() for var in tcss_tests_checkbox_vars))
+                else:
+                    highlight_frame(tcss_frame, False)
+                
+                edp_active = any(var['value'].get() for var in edp_lanes_checkbox_vars + edp_protocols_checkbox_vars + 
+                                edp_tests_checkbox_vars)
+                if edp_active:
+                    highlight_frame(edp_lanes_frame, not any(var['value'].get() for var in edp_lanes_checkbox_vars))
+                    highlight_frame(edp_protocols_frame, not any(var['value'].get() for var in edp_protocols_checkbox_vars))
+                    highlight_frame(edp_tests_frame, not any(var['value'].get() for var in edp_tests_checkbox_vars))
+                else:
+                    highlight_frame(edp_frame, False)
+
+        input_window = tk.Toplevel(self.root)
+        input_window.title("Input")
+        input_window.iconbitmap("Images/MTC1_Logo.ico")
+        input_window.resizable(False, False)
+
+        # Set the window position
+        input_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+
+        # Make the input window modal
+        input_window.transient(self.root)
+        input_window.grab_set()
+
+        top_frame = tk.Frame(input_window)
+        bottom_frame = tk.Frame(input_window)
+        top_frame.pack()
+        bottom_frame.pack()
+
+        # Corners Checkboxes
+        corners_frame = tk.LabelFrame(top_frame, text="Corners")
+        corners_frame.pack(fill='both', padx=5, pady=5, side="left")
+        Corners_checkbox_texts = TG.corners
+        Corners_checkbox_vars = []
+        for text in Corners_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(corners_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            Corners_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS frame
+        tcss_frame = tk.LabelFrame(top_frame, text="TCSS")
+        tcss_frame.pack(fill='both', padx=5, pady=5, side='left')
+
+        # TCSS ports
+        tcss_ports_frame = tk.LabelFrame(tcss_frame, text="Ports")
+        tcss_ports_frame.pack(fill='both', padx=5, pady=5, side='left')
+        tcss_ports_checkbox_texts = TG.instances["tcss"]
+        tcss_ports_checkbox_vars = []
+        for text in tcss_ports_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_ports_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_ports_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS lanes
+        tcss_lanes_frame = tk.LabelFrame(tcss_frame, text="Lanes")
+        tcss_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
+        tcss_lanes_checkbox_texts = TG.lanes['tcss']
+        tcss_lanes_checkbox_vars = []
+        for text in tcss_lanes_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_lanes_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_lanes_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS protocols
+        tcss_protocols_frame = tk.LabelFrame(tcss_frame, text="Protocols")
+        tcss_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
+        tcss_protocols_checkbox_texts = TG.protocols["tcss"]
+        tcss_protocols_checkbox_vars = []
+        for text in tcss_protocols_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_protocols_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_protocols_checkbox_vars.append({'value': var, 'text': text})
+
+        # TCSS tests
+        tcss_tests_frame = tk.LabelFrame(tcss_frame, text="Tests")
+        tcss_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
+        tcss_tests_checkbox_texts = TG.tests['tcss']
+        tcss_tests_checkbox_vars = []
+        for text in tcss_tests_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(tcss_tests_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            tcss_tests_checkbox_vars.append({'value': var, 'text': text})
+
+        # eDP frame
+        edp_frame = tk.LabelFrame(top_frame, text="eDP")
+        edp_frame.pack(fill='both', padx=5, pady=5, side='left')
+
+        # eDP lanes
+        edp_lanes_frame = tk.LabelFrame(edp_frame, text="Lanes")
+        edp_lanes_frame.pack(fill='both', padx=5, pady=5, side="left")
+        edp_lanes_checkbox_texts = TG.lanes['edp']
+        edp_lanes_checkbox_vars = []
+        for text in edp_lanes_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_lanes_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            edp_lanes_checkbox_vars.append({'value': var, 'text': text})
+
+        # eDP protocols
+        edp_protocols_frame = tk.LabelFrame(edp_frame, text="Protocols")
+        edp_protocols_frame.pack(fill='both', padx=5, pady=5, side="left")
+        edp_protocols_checkbox_texts = TG.protocols['edp']
+        edp_protocols_checkbox_vars = []
+        for text in edp_protocols_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_protocols_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            edp_protocols_checkbox_vars.append({'value': var, 'text': text})
+
+        # eDP tests
+        edp_tests_frame = tk.LabelFrame(edp_frame, text="Tests")
+        edp_tests_frame.pack(fill='both', padx=5, pady=5, side="left")
+        edp_tests_checkbox_texts = TG.tests['edp']
+        edp_tests_checkbox_vars = []
+        for text in edp_tests_checkbox_texts:
+            var = tk.IntVar()
+            checkbox = tk.Checkbutton(edp_tests_frame, text=text, variable=var, command=update_submit_button)
+            checkbox.pack(anchor='w')
+            edp_tests_checkbox_vars.append({'value': var, 'text': text})
+
+        # Submit button
+        submit_button = tk.Button(bottom_frame, text="Submit", command=on_submit, state='disabled')
+        submit_button.pack(padx=10, pady=10, side='right')
+
+        # Cancel Button
+        cancel_button = tk.Button(bottom_frame, text="Cancel", command=input_window.destroy)
+        cancel_button.pack(padx=10, pady=10, side='right')
+
+        # Wait for the input window to be closed before returning to the main window
+        self.root.wait_window(input_window)
 
     def remove_item(self):
-        pass
+        threading.Thread(target=self.remove_item_thread_function).start()
+
+    def remove_item_thread_function(self):
+        if DEBUG:
+                    print_call_stack()
+                    print('[=]    tree LOCKED')
+        anti_lock_event.wait()
+        with self.tree_lock:
+            self.remove_item_no_mutex()
+            if DEBUG:
+                print_call_stack()
+                print(']    [ tree UNLOCKED')
+
+    def remove_item_no_mutex(self):
+        """Function to remove the selected item from the job queue treeview."""
+        selected_items = self.job_queue_tree.selection()  # Returns a list of selected items
+        for selected_item in selected_items:
+            try:
+                item_values = self.job_queue_tree.item(selected_item)['values']
+                self.job_queue_tree.delete(selected_item)
+                
+                # Remove task from task_queue
+                for i, task in enumerate(list(self.task_queue.queue)):
+                    if task == item_values:
+                        del self.task_queue.queue[i]
+                        break
+            except:
+                print(f"Item {selected_item} not found")
 
     def remove_all(self):
-        pass
+        threading.Thread(target=self.warn_before_removing_all_jobs, args=["remove all pressed"]).start()
+
+    def warn_before_removing_all_jobs(self, cause):
+        jobber_wait_event.set()  # Signal jobber to wait
+        response = messagebox.askyesno("Warning", "This action will remove all current jobs.\nDo you want to proceed?")
+        if response:
+            self.stop_tests()
+            if cause == "generating new list":
+                self.generated_from_list = True
+            if DEBUG:
+                    print_call_stack()
+                    print('[=]    tree LOCKED')
+            anti_lock_event.wait()
+            with self.tree_lock:
+                self.remove_all_jobs()
+                if DEBUG:
+                    print_call_stack()
+                    print(']    [ tree UNLOCKED')
+        jobber_continue_event.set()  # Signal jobber to continue
+
+    def remove_all_jobs(self):
+        # Clear Job Queue Treeview
+        for item in self.job_queue_tree.get_children():
+            self.job_queue_tree.delete(item)
+
+        # Clear Finished Jobs Treeview
+        for item in self.finished_jobs_tree.get_children():
+            self.finished_jobs_tree.delete(item)
+
+        self.task_queue.queue.clear()
+        self.generated_from_list = False
 
     def generate_list(self):
         if self.job_queue_tree.get_children():
@@ -882,6 +1187,43 @@ class MainGUI:
             task = tmp.get()
             self.task_queue.put(task)
             self.setup_queue.put(task)
+
+    def jobber_thread_function(self):
+        anti_lock_event.clear()
+        while True:
+            if jobber_wait_event.is_set():
+                jobber_wait_event.clear()  # Reset the wait event
+                jobber_continue_event.wait()  # Wait for signal to continue
+                jobber_continue_event.clear()  # Clear the continue event for the next iteration
+            
+            if stop_event.is_set():
+                print("Jobber stopping")
+                stop_event.clear()
+                break
+            
+            if self.task_queue.empty():
+                self.configure_play_stop_indicators('stop')
+                break
+            else:
+                if DEBUG:
+                        print_call_stack()
+                        print('[=]    tree LOCKED')
+                with self.tree_lock:
+                    # Simulate job processing and marking as finished
+                    print("Jobbing, tree_lock = " + str(self.tree_lock))
+                    job = self.task_queue.get()
+                    # Here you would have logic to determine when a job is finished.
+                    # For now, we'll just simulate a delay and then mark it as finished.
+                    threading.Event().wait(1)  # Simulate time taken to complete the job
+                    self.job_queue_tree.delete(self.job_queue_tree.get_children()[0])  # Remove job from queue
+                    finished_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+                    finished_job = [finished_time] + job
+                    self.finished_jobs_tree.insert('', 'end', values=finished_job)  # Add job to finished
+                    if DEBUG:
+                        print_call_stack()
+                        print(']    [ tree UNLOCKED')
+            anti_lock_event.set()
+            anti_lock_event.clear()
 
     def board_thread_function(self):
         print("Board Thread running")
