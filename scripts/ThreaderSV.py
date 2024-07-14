@@ -8,12 +8,14 @@ import datetime
 from PIL import Image, ImageTk
 import json
 import tkinter.ttk as ttk
+import inspect
 
 
 
 # GLOBALS
 VERSION = 0.1
 YEAR = datetime.datetime.now().year
+DEBUG = True
 indicators_status_dict = {
     'SixShot': {
         'N/A': 'grey',
@@ -70,9 +72,22 @@ indicators_status = {
 
 ## Thread synchronization
 change_indicator_event = threading.Event()
+jobber_wait_event = threading.Event()
+jobber_continue_event = threading.Event()
+stop_event = threading.Event()
+anti_lock_event = threading.Event()
+
+
 
 
 # global functions
+def print_call_stack():
+    stack = inspect.stack()
+    for frame in stack[1:2]:
+        #print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.function}")
+        print(f"Line: {frame.lineno}, Function: {frame.function}")
+
+
 class Queue:
     def __init__(self):
         self.queue = []
@@ -238,7 +253,7 @@ class MainGUI:
     def __init__(self, root, task_queue, empty_task_list, configurations, config_file_path):
         self.root = root
         self.root.title("MTC1 | Main Debug")
-        self.root.minsize(800, 615)
+        self.root.minsize(1000, 630)
         self.configurations = configurations
         self.config_file_path = config_file_path
 
@@ -246,19 +261,32 @@ class MainGUI:
         self.vnc_viewer_path = r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe"
         self.generated_from_list = False
 
-        # Mutexes
+        # Mutexes and Events
         self.tree_lock  = threading.Lock()
         self.pause_lock = threading.Lock()
+        anti_lock_event.set()
 
         # Add Menu
         self.menu_bar = tk.Menu(self.root)
         self.root.config(menu=self.menu_bar)
 
         # Set the window icon
-        self.root.iconbitmap("MTC1_Logo.ico")
+        self.root.iconbitmap("Images/MTC1_Logo.ico")
 
         # Call the on_closing method when the window is closed
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Load Images
+        self.play_stop_buttons_paths_array = [r'Images\stop.png',r'Images\play.png']
+        self.play_stop_buttons_array = []
+        for path in self.play_stop_buttons_paths_array:
+            image = Image.open(path)
+            image = image.resize((25, 25), Image.LANCZOS)
+            image = ImageTk.PhotoImage(image)
+            self.play_stop_buttons_array.append(image)
+        self.stop_image = self.play_stop_buttons_array[0]
+        self.play_image = self.play_stop_buttons_array[1]
+
 
         # Add "Menu" to the menu bar
         self.menu = tk.Menu(self.menu_bar, tearoff=0)
@@ -292,8 +320,9 @@ class MainGUI:
 
         # Build the top frame content
 
-        # Define the columns
+        # Define the columns (add 'finished_time' for finished jobs tree)
         self.columns = ('corner', 'phy', 'port', 'lane', 'protocol', 'test')
+        self.finished_columns = ('finish time', 'corner', 'phy', 'port', 'lane', 'protocol', 'test')
 
         # Define top frames for job queue and finished jobs
         self.job_queue_frame = tk.LabelFrame(self.top_trees_frame, text="Job Queue")
@@ -312,17 +341,33 @@ class MainGUI:
         self.job_queue_tree = ttk.Treeview(self.job_queue_frame, columns=self.columns, show="headings")
         for col in self.columns:
             self.job_queue_tree.heading(col, text=col.title())
-            self.job_queue_tree.column(col, stretch=tk.YES, width=100)
+            if col in ['corner','phy']:
+                self.job_queue_tree.column(col, stretch=tk.NO, width=50,minwidth=50)
+            elif col in ['protocol']:
+                self.job_queue_tree.column(col, stretch=tk.NO, width=55,minwidth=55)
+            elif col in ['lane','port']:
+                self.job_queue_tree.column(col, stretch=tk.NO, width=35,minwidth=35)
+            else:
+                self.job_queue_tree.column(col, stretch=tk.YES, width=100)
         self.job_queue_scrollbar = ttk.Scrollbar(self.job_queue_frame, orient=tk.VERTICAL, command=self.job_queue_tree.yview)
         self.job_queue_scrollbar.pack(side=tk.RIGHT, fill='y')
         self.job_queue_tree.pack(fill=tk.BOTH, expand=True)
         self.job_queue_tree.configure(yscrollcommand=self.job_queue_scrollbar.set)
 
-        # Create the Finished Jobs Treeview
-        self.finished_jobs_tree = ttk.Treeview(self.finished_jobs_frame, columns=self.columns, show="headings")
-        for col in self.columns:
+        # Create the Finished Jobs Treeview with the new column
+        self.finished_jobs_tree = ttk.Treeview(self.finished_jobs_frame, columns=self.finished_columns, show="headings")
+        for col in self.finished_columns:
             self.finished_jobs_tree.heading(col, text=col.title())
-            self.finished_jobs_tree.column(col, stretch=tk.YES, width=100)
+            if col == 'finish time':
+                self.finished_jobs_tree.column(col, stretch=tk.NO, width=115,minwidth=115)
+            elif col in ['corner','phy']:
+                self.finished_jobs_tree.column(col, stretch=tk.NO, width=50,minwidth=50)
+            elif col in ['protocol']:
+                self.finished_jobs_tree.column(col, stretch=tk.NO, width=55,minwidth=55)
+            elif col in ['lane','port']:
+                self.finished_jobs_tree.column(col, stretch=tk.NO, width=35,minwidth=35)
+            else:
+                self.finished_jobs_tree.column(col, stretch=tk.YES, width=100)
         self.finished_jobs_scrollbar = ttk.Scrollbar(self.finished_jobs_frame, orient=tk.VERTICAL, command=self.finished_jobs_tree.yview)
         self.finished_jobs_scrollbar.pack(side=tk.RIGHT, fill='y')
         self.finished_jobs_tree.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -379,9 +424,28 @@ class MainGUI:
         self.button_seperator = tk.Label(self.controls_frame, height=3)
         self.button_seperator.pack(fill=tk.X)
 
-        # Run Tests In Queue
-        self.run_tests_in_queue_button = tk.Button(self.controls_frame, text="Run Tests In Queue",command=self.run_tests_in_queue)
-        self.run_tests_in_queue_button.pack(fill=tk.X, pady=0, side='bottom')
+        # Play stop pause frame
+        self.play_stop_pause_frame = tk.Frame(self.controls_frame)
+        self.play_stop_pause_frame.pack(fill=tk.X, pady=0, side='bottom')
+
+        # Configure the columns to expand
+        self.play_stop_pause_frame.columnconfigure(0, weight=1)
+        self.play_stop_pause_frame.columnconfigure(1, weight=1)
+
+        # Stop button and indicator
+        self.stop_button = tk.Button(self.play_stop_pause_frame, command=self.stop_tests, image=self.stop_image,state='disabled')
+        self.stop_button.grid(row=0, column=0, sticky='ew', padx=3)
+
+        self.stop_indicator = tk.Frame(self.play_stop_pause_frame, height=10, relief='sunken', bd=2,bg="red")
+        self.stop_indicator.grid(row=1, column=0, sticky='ew', padx=2,pady=2)
+
+        # Play button and indicator
+        self.play_button = tk.Button(self.play_stop_pause_frame, command=self.run_tests_in_queue, image=self.play_image)
+        self.play_button.grid(row=0, column=1, sticky='ew', padx=3)
+
+        self.play_indicator = tk.Frame(self.play_stop_pause_frame, height=10, relief='sunken', bd=2,bg="grey")
+        self.play_indicator.grid(row=1, column=1, sticky='ew', padx=2,pady=2)
+
 
         # Queue for tasks
         self.setup_queue = task_queue
@@ -488,7 +552,7 @@ class MainGUI:
 
         preferences_window = tk.Toplevel(self.root)
         preferences_window.title("Preferences")
-        preferences_window.iconbitmap("MTC1_Logo.ico")
+        preferences_window.iconbitmap("Images/MTC1_Logo.ico")
         preferences_window.resizable(False, False)
 
         # Set the window position
@@ -673,7 +737,7 @@ class MainGUI:
 
     def show_about(self):
         about_window = tk.Toplevel(self.root)
-        about_window.iconbitmap("MTC1_Logo.ico")
+        about_window.iconbitmap("Images/MTC1_Logo.ico")
         about_window.title("About")
         about_window.minsize(280, 115)
         about_window.resizable(False, False)
@@ -682,7 +746,7 @@ class MainGUI:
         about_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
 
         # Load the image and resize it
-        image_path = "MTC1_Logo.png"  # Update with your image path
+        image_path = "Images/MTC1_Logo.png"  # Update with your image path
         img = Image.open(image_path)
         img = img.resize((50, 50), Image.LANCZOS)
         logo = ImageTk.PhotoImage(img)
@@ -759,8 +823,31 @@ class MainGUI:
                     text=indicators_status[indicator_name])
             change_indicator_event.clear()
 
+    def configure_play_stop_indicators(self,indicator):
+        self.play_indicator.config(bg='grey')
+        self.stop_indicator.config(bg='grey')
+        self.play_button.config(state='disabled')
+        self.stop_button.config(state='disabled')
+        if indicator == 'play':
+            self.play_indicator.config(bg='#00ff00')
+            self.stop_button.config(state='normal')
+            self.generate_list_button.configure(state='disabled')
+        elif indicator == 'stop':
+            self.stop_indicator.config(bg='red')
+            self.play_button.config(state='normal')
+            self.generate_list_button.configure(state='normal')
+
+    def stop_tests(self):
+        self.configure_play_stop_indicators('stop')
+        stop_event.set()  # Signal jobber to stop
+        anti_lock_event.set()
+
     def run_tests_in_queue(self):
+        self.configure_play_stop_indicators('play')
+        stop_event.clear()
+        jobber_continue_event.set()  # Ensure jobber continues if it was paused
         threading.Thread(target=self._run_tests_in_queue_worker, daemon=True).start()
+
 
     def _run_tests_in_queue_worker(self):
         print("Tests in the queue:")
@@ -769,14 +856,14 @@ class MainGUI:
 
         # Start the other threads
         threads = [
+            threading.Thread(target=self.jobber_thread_function),  # Start jobber thread
             threading.Thread(target=self.board_thread_function),
             threading.Thread(target=self.intec_thread_function),
             threading.Thread(target=self.unit_thread_function),
             threading.Thread(target=self.switch_thread_function),
             threading.Thread(target=self.scope_thread_function),
             threading.Thread(target=self.jbert_thread_function),
-            threading.Thread(target=self.sixshot_thread_function),
-            threading.Thread(target=self.jobber_thread_function)  # Start jobber thread
+            threading.Thread(target=self.sixshot_thread_function)
         ]
 
         for thread in threads:
@@ -804,8 +891,18 @@ class MainGUI:
                 frame.configure(fg="black")
 
         def on_submit():
+            threading.Thread(target=on_submit_thread_function).start()
+
+        def on_submit_thread_function():
+            if DEBUG:
+                    print_call_stack()
+                    print('[=]    tree LOCKED')
+            anti_lock_event.wait()
             with self.tree_lock:
                 on_submit_no_mutex()
+                if DEBUG:
+                    print_call_stack()
+                    print(']    [ tree UNLOCKED')
 
         def on_submit_no_mutex():
             tcss_condition = (any(var['value'].get() for var in Corners_checkbox_vars) and
@@ -871,7 +968,7 @@ class MainGUI:
 
         input_window = tk.Toplevel(self.root)
         input_window.title("Input")
-        input_window.iconbitmap("MTC1_Logo.ico")
+        input_window.iconbitmap("Images/MTC1_Logo.ico")
         input_window.resizable(False, False)
 
         # Set the window position
@@ -994,8 +1091,19 @@ class MainGUI:
         self.root.wait_window(input_window)
 
     def remove_item(self):
+        threading.Thread(target=self.remove_item_thread_function).start()
+
+    def remove_item_thread_function(self):
+        if DEBUG:
+                    print_call_stack()
+                    print('[=]    tree LOCKED')
+        anti_lock_event.wait()
         with self.tree_lock:
             self.remove_item_no_mutex()
+            if DEBUG:
+                print_call_stack()
+                print(']    [ tree UNLOCKED')
+            
 
     def remove_item_no_mutex(self):
         """Function to remove the selected item from the job queue treeview."""
@@ -1014,16 +1122,28 @@ class MainGUI:
                 print(f"Item {selected_item} not found")
 
     def remove_all(self):
-        self.warn_before_removing_all_jobs("remove all pressed")
+        threading.Thread(target=self.warn_before_removing_all_jobs, args=["remove all pressed"]).start()
 
     def warn_before_removing_all_jobs(self, cause):
+        jobber_wait_event.set()  # Signal jobber to wait
         response = messagebox.askyesno("Warning", "This action will remove all current jobs.\nDo you want to proceed?")
         if response:
+            self.stop_tests()
             if cause == "generating new list":
                 self.generated_from_list = True
-            print("Removing all, tree_lock = " + str(self.tree_lock))
+            if DEBUG:
+                    print_call_stack()
+                    print('[=]    tree LOCKED')
+            anti_lock_event.wait()
             with self.tree_lock:
                 self.remove_all_jobs()
+                if DEBUG:
+                    print_call_stack()
+                    print(']    [ tree UNLOCKED')
+        jobber_continue_event.set()  # Signal jobber to continue
+
+
+                
 
     def remove_all_jobs(self):
         # Clear Job Queue Treeview
@@ -1037,11 +1157,8 @@ class MainGUI:
         self.task_queue.queue.clear()
         self.generated_from_list = False
 
-    def generate_list(self):
-        with self.tree_lock:
-            self.generate_list_no_mutex()
 
-    def generate_list_no_mutex(self):
+    def generate_list(self):
         if self.job_queue_tree.get_children():
             self.warn_before_removing_all_jobs("generating new list")
         tmp = Queue()
@@ -1056,10 +1173,25 @@ class MainGUI:
             self.setup_queue.put(task)
 
     def jobber_thread_function(self):
+        anti_lock_event.clear()
         while True:
+            if jobber_wait_event.is_set():
+                jobber_wait_event.clear()  # Reset the wait event
+                jobber_continue_event.wait()  # Wait for signal to continue
+                jobber_continue_event.clear()  # Clear the continue event for the next iteration
+            
+            if stop_event.is_set():
+                print("Jobber stopping")
+                stop_event.clear()
+                break
+            
             if self.task_queue.empty():
+                self.configure_play_stop_indicators('stop')
                 break
             else:
+                if DEBUG:
+                        print_call_stack()
+                        print('[=]    tree LOCKED')
                 with self.tree_lock:
                     # Simulate job processing and marking as finished
                     print("Jobbing, tree_lock = " + str(self.tree_lock))
@@ -1068,7 +1200,17 @@ class MainGUI:
                     # For now, we'll just simulate a delay and then mark it as finished.
                     threading.Event().wait(1)  # Simulate time taken to complete the job
                     self.job_queue_tree.delete(self.job_queue_tree.get_children()[0])  # Remove job from queue
-                    self.finished_jobs_tree.insert('', 'end', values=job)  # Add job to finished
+                    finished_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+                    finished_job = [finished_time] + job
+                    self.finished_jobs_tree.insert('', 'end', values=finished_job)  # Add job to finished
+                    if DEBUG:
+                        print_call_stack()
+                        print(']    [ tree UNLOCKED')
+            anti_lock_event.set()
+            anti_lock_event.clear()
+
+
+
 
     def board_thread_function(self):
         print("Board Thread running")
@@ -1112,7 +1254,8 @@ class MainClass():
     def DoTechnicals(self):
         self.setup_tasks = Queue()
         self.setup_tasks = TG.TaskGenerator(self.setup_tasks)
-        self.RunGUI_in_new_Thread()
+        #self.RunGUI_in_new_Thread()
+        self.init_gui()
 
     def RunGUI_in_new_Thread(self):
         # Create a new thread targeting the function that initializes and runs the GUI.
